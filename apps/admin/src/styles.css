@@ -1,0 +1,113 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Design tokens from DESIGN.md (xAI-style system).
+ * Dark canvas only (no light mode, no .dark toggle); weight 400 everywhere;
+ * hairline borders, no shadows; pills for every interactive element.
+ */
+@theme {
+  --color-canvas: #0a0a0a;
+  --color-canvas-soft: #1a1c20;
+  --color-canvas-card: #191919;
+  --color-mid: #363a3f;
+  --color-hairline: #212327;
+  --color-ink: #ffffff;
+  --color-body: #dadbdf;
+  --color-mute: #7d8187;
+  --color-sunset: #ff7a17;
+  --color-sunset-soft: #ffc285;
+  --color-dusk: #7c3aed;
+  --color-twilight: #c4b5fd;
+  --color-breeze: #a0c3ec;
+
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+}
+
+/* shadcn semantic variables, mapped onto the DESIGN.md palette. */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* One theme only: the near-black canvas. */
+:root {
+  --background: #0a0a0a;
+  --foreground: #dadbdf;
+  --card: #191919;
+  --card-foreground: #dadbdf;
+  --popover: #191919;
+  --popover-foreground: #dadbdf;
+  --primary: #ffffff;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1c20;
+  --secondary-foreground: #ffffff;
+  --muted: #1a1c20;
+  --muted-foreground: #7d8187;
+  --accent: #1a1c20;
+  --accent-foreground: #ffffff;
+  --destructive: #ff7a17;
+  --border: #212327;
+  --input: #212327;
+  --ring: rgba(255, 255, 255, 0.35);
+  --radius: 0.5rem; /* 8px card chrome */
+}
+
+@layer base {
+  html {
+    background: var(--color-canvas);
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-weight: 400;
+  }
+  /* The brand never bolds: size, color and tracking do the emphasis work. */
+  h1, h2, h3, h4, b, strong, th {
+    font-weight: 400;
+  }
+  input, select, textarea {
+    color-scheme: dark;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+@layer components {
+  /* GeistMono uppercase tracked eyebrow, the brand's signature label. */
+  .eyebrow {
+    @apply font-mono text-xs uppercase text-mute;
+    letter-spacing: 0.1em;
+  }
+  /* Data-table header cells read as code comments (ex-data-table-cell). */
+  .th-mono {
+    @apply font-mono text-xs uppercase text-mute;
+    letter-spacing: 0.08em;
+  }
+}

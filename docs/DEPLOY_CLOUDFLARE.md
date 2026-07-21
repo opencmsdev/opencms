@@ -44,17 +44,23 @@ Optionally set the canonical URL (used for cookies and origin checks) in
 BETTER_AUTH_URL = "https://opencms-api.<account>.workers.dev"
 ```
 
-## 4. Deploy
+## 4. Build the admin and deploy
+
+The Worker ships the admin SPA as static assets, so build it first:
 
 ```bash
+bun run --cwd ../admin build
 bunx wrangler deploy
 ```
 
 Wrangler prints your URL, e.g. `https://opencms-api.<account>.workers.dev`.
+The admin UI is served at that URL's root; `/api/*` and `/health` hit the
+Worker directly (`run_worker_first`).
 
 ## 5. Bootstrap the admin and smoke test
 
-The first signup becomes the admin, then signup closes.
+Open the deployed URL: the admin UI shows the first-run setup screen and
+creates the admin account there. Or bootstrap over HTTP:
 
 ```bash
 API=https://opencms-api.<account>.workers.dev

@@ -46,6 +46,8 @@ export interface Actor {
  */
 export interface AuthConnector {
   handler: (request: Request) => Promise<Response>;
+  /** True while no user exists yet (the admin UI shows first-run setup). */
+  needsSetup?: () => Promise<boolean>;
   api: {
     getSession: (input: {
       headers: Headers;
@@ -231,6 +233,13 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     c.set("actor", await resolveActor(opts.auth, c.req.raw.headers));
     await next();
   });
+
+  // Public first-run probe: tells the admin UI whether to show the setup
+  // screen. Leaks only the boolean "a user exists", which the closed signup
+  // endpoint reveals anyway.
+  app.get("/api/setup", async (c) =>
+    c.json({ needsSetup: (await opts.auth.needsSetup?.()) ?? false })
+  );
 
   // Content types -------------------------------------------------------------
   // Schema is the admins' domain; editors may read it (the entry editor

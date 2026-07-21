@@ -6,4 +6,7 @@ dist/
 *.db-shm
 .DS_Store
 .env
+.dev.vars
 _to_delete/
+test-results/
+playwright-report/

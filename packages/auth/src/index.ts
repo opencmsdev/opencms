@@ -150,6 +150,11 @@ export type Auth = ReturnType<typeof createAuth>;
 export function toAuthConnector(auth: Auth) {
   return {
     handler: (request: Request): Promise<Response> => auth.handler(request),
+    /** True until the bootstrap admin exists; drives the admin UI setup screen. */
+    needsSetup: async (): Promise<boolean> => {
+      const ctx = await auth.$context;
+      return (await ctx.adapter.count({ model: "user" })) === 0;
+    },
     api: {
       getSession: (input: { headers: Headers }) =>
         auth.api.getSession({ headers: input.headers }),

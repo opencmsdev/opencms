@@ -39,5 +39,8 @@
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
     "apps/*/**/*.ts"
+  ],
+  "exclude": [
+    "apps/admin"
   ]
 }
