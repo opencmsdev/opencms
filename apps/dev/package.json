@@ -1,0 +1,11 @@
+{
+  "name": "@opencms/dev",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@opencms/api": "workspace:*",
+    "@opencms/connector-sqlite": "workspace:*",
+    "@opencms/core": "workspace:*"
+  }
+}
