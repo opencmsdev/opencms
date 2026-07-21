@@ -39,8 +39,10 @@ test("create a content type in the builder", async ({ page }) => {
   await page.getByTestId("add-field").click();
   const category = page.getByTestId("field-1");
   await category.getByRole("textbox", { name: "Field name" }).fill("category");
-  await category.getByRole("combobox", { name: "Kind" }).click();
+  // Rich kind picker: trigger button, then an option carrying the kind name.
+  await category.getByRole("button", { name: "Kind" }).click();
   await page.getByRole("option", { name: "select", exact: true }).click();
+  await expect(category.getByRole("button", { name: "Kind" })).toContainText("Select");
   await category.getByRole("textbox", { name: "Options" }).fill("news, opinion");
 
   await page.getByTestId("save-type").click();

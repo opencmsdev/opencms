@@ -1,24 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, type ContentTypeDef, type FieldDef } from "../api.ts";
-import { ConfirmButton, EmptyState, ErrorNote, Eyebrow, Field, PageHeader, SimpleSelect } from "../ui.tsx";
+import { ConfirmButton, EmptyState, ErrorNote, Eyebrow, Field, PageHeader } from "../ui.tsx";
+import { KindSelect, kindMeta } from "../field-kinds.tsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-const KINDS: FieldDef["kind"][] = [
-  "text",
-  "richtext",
-  "number",
-  "boolean",
-  "date",
-  "select",
-  "json",
-  "reference",
-  "media",
-];
 
 export function TypesScreen() {
   const [types, setTypes] = useState<ContentTypeDef[] | null>(null);
@@ -259,13 +248,11 @@ export function TypeEditorScreen() {
                     placeholder="title"
                   />
                 </Field>
-                <Field label="Kind" htmlFor={`field-kind-${i}`}>
-                  <SimpleSelect
+                <Field label="Kind" hint={kindMeta(f.kind).hint} htmlFor={`field-kind-${i}`}>
+                  <KindSelect
                     id={`field-kind-${i}`}
-                    ariaLabel="Kind"
                     value={f.kind}
-                    onValueChange={(v) => patchField(f._key, { kind: v as FieldDef["kind"] })}
-                    options={KINDS.map((k) => ({ value: k, label: k }))}
+                    onChange={(kind) => patchField(f._key, { kind })}
                   />
                 </Field>
               </div>
