@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import type { Hono } from "hono";
-import { MemoryDataConnector } from "@opencms/core";
-import { createApp } from "@opencms/api";
+import { createTestApp, json as authedJson, type TestContext } from "./helpers.ts";
 
-let app: Hono;
+let ctx: TestContext;
 
 const articleType = {
   name: "article",
@@ -14,26 +12,23 @@ const articleType = {
   ],
 };
 
+/** All requests here run as the bootstrap admin; auth.test.ts covers RBAC. */
 async function req(
   path: string,
   init?: RequestInit
 ): Promise<{ status: number; body: any }> {
-  const res = await app.request(path, init);
+  const headers = new Headers(init?.headers);
+  if (!headers.has("cookie")) headers.set("cookie", ctx.adminCookie);
+  const res = await ctx.app.request(path, { ...init, headers });
   const text = await res.text();
   return { status: res.status, body: text ? JSON.parse(text) : null };
 }
 
-const json = (method: string, body: unknown): RequestInit => ({
-  method,
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify(body),
-});
+const json = (method: string, body: unknown): RequestInit => authedJson(method, body);
 
 beforeEach(async () => {
-  const data = new MemoryDataConnector();
-  await data.init();
-  app = createApp({ data });
-  await app.request("/api/content-types", json("POST", articleType));
+  ctx = await createTestApp();
+  await req("/api/content-types", json("POST", articleType));
 });
 
 describe("content types API", () => {

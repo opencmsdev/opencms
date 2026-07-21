@@ -19,6 +19,18 @@ export class ConflictError extends OpenCMSError {
   }
 }
 
+export class UnauthorizedError extends OpenCMSError {
+  constructor(message = "authentication required") {
+    super("unauthorized", message);
+  }
+}
+
+export class ForbiddenError extends OpenCMSError {
+  constructor(message = "insufficient role") {
+    super("forbidden", message);
+  }
+}
+
 export interface ValidationIssue {
   path: string;
   message: string;

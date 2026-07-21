@@ -2,6 +2,12 @@ name = "opencms-api"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
 
+# Auth requires a signing secret (never commit one):
+#   wrangler secret put BETTER_AUTH_SECRET
+# Optionally set the canonical URL for cookies/origin checks:
+# [vars]
+# BETTER_AUTH_URL = "https://opencms-api.YOUR_SUBDOMAIN.workers.dev"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "opencms"

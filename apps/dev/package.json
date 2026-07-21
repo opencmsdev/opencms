@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@opencms/api": "workspace:*",
+    "@opencms/auth": "workspace:*",
     "@opencms/connector-sqlite": "workspace:*",
     "@opencms/core": "workspace:*"
   }

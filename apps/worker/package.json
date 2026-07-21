@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@opencms/api": "workspace:*",
+    "@opencms/auth": "workspace:*",
     "@opencms/connector-d1": "workspace:*",
     "hono": "^4.6.0"
   },

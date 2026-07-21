@@ -1,12 +1,16 @@
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
 import { z } from "zod";
 import {
   ContentTypeService,
   EntryService,
+  ForbiddenError,
   NotFoundError,
   OpenCMSError,
+  UnauthorizedError,
   ValidationError,
   type DataConnector,
+  type Entry,
   type EntryQuery,
   type Filter,
   type Sort,
@@ -15,15 +19,48 @@ import {
 /**
  * The Admin API as a runtime-agnostic Hono app.
  *
- * Bun:                Bun.serve({ fetch: createApp({ data }).fetch })
- * Cloudflare Workers: export default createApp({ data })
+ * Bun:                Bun.serve({ fetch: createApp({ data, auth }).fetch })
+ * Cloudflare Workers: export default createApp({ data, auth })
  *
- * Auth is intentionally absent in this milestone; it arrives with the admin
- * UI (better-auth) and will wrap this app as middleware.
+ * Access model (M3):
+ * - better-auth is mounted at /api/auth/* (sessions, users, API keys).
+ * - Requests authenticate with a session cookie or an `x-api-key` header.
+ * - Anonymous requests can read published entries only.
+ * - Editors (and every valid API key by default) manage content.
+ * - Admins additionally manage content types, users and API keys.
  */
+
+export type ActorRole = "admin" | "editor";
+
+export interface Actor {
+  kind: "session" | "api-key" | "anonymous";
+  /** null means anonymous: published-content reads only. */
+  role: ActorRole | null;
+  userId: string | null;
+}
+
+/**
+ * The slice of a better-auth instance the API needs. Structural on purpose:
+ * @opencms/api stays decoupled from better-auth's types, and anything that
+ * can answer these three calls (e.g. a stub in tests) is a valid auth source.
+ */
+export interface AuthConnector {
+  handler: (request: Request) => Promise<Response>;
+  api: {
+    getSession: (input: {
+      headers: Headers;
+    }) => Promise<{ user: { id: string; role?: string | null } } | null>;
+    verifyApiKey: (input: { body: { key: string } }) => Promise<{
+      valid: boolean;
+      /** referenceId is the owning user's id (better-auth api-key model). */
+      key: { referenceId: string; metadata?: unknown } | null;
+    }>;
+  };
+}
 
 export interface CreateAppOptions {
   data: DataConnector;
+  auth: AuthConnector;
 }
 
 const entryCreateSchema = z
@@ -111,14 +148,64 @@ async function jsonBody(c: { req: { json: () => Promise<unknown> } }): Promise<u
   }
 }
 
-export function createApp(opts: CreateAppOptions): Hono {
+function toActorRole(value: unknown): ActorRole {
+  return value === "admin" ? "admin" : "editor";
+}
+
+async function resolveActor(auth: AuthConnector, headers: Headers): Promise<Actor> {
+  const apiKey = headers.get("x-api-key");
+  if (apiKey) {
+    const result = await auth.api.verifyApiKey({ body: { key: apiKey } });
+    if (!result.valid || !result.key) {
+      throw new UnauthorizedError("invalid API key");
+    }
+    const metadata = (result.key.metadata ?? {}) as { role?: unknown };
+    return { kind: "api-key", role: toActorRole(metadata.role), userId: result.key.referenceId };
+  }
+
+  const session = await auth.api.getSession({ headers });
+  if (session) {
+    return { kind: "session", role: toActorRole(session.user.role), userId: session.user.id };
+  }
+
+  return { kind: "anonymous", role: null, userId: null };
+}
+
+type AppEnv = { Variables: { actor: Actor } };
+
+function requireRole(min: ActorRole): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const actor = c.get("actor");
+    if (!actor.role) throw new UnauthorizedError();
+    if (min === "admin" && actor.role !== "admin") {
+      throw new ForbiddenError("admin role required");
+    }
+    await next();
+  };
+}
+
+/** Anonymous readers never see drafts; pretend they don't exist. */
+function visibleTo(actor: Actor, entry: Entry): Entry {
+  if (actor.role === null && entry.status !== "published") {
+    throw new NotFoundError("entry not found");
+  }
+  return entry;
+}
+
+export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   const types = new ContentTypeService(opts.data);
   const entries = new EntryService(opts.data);
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
 
   app.onError((err, c) => {
     if (err instanceof ValidationError) {
       return c.json({ error: err.code, message: err.message, issues: err.issues }, 400);
+    }
+    if (err instanceof UnauthorizedError) {
+      return c.json({ error: err.code, message: err.message }, 401);
+    }
+    if (err instanceof ForbiddenError) {
+      return c.json({ error: err.code, message: err.message }, 403);
     }
     if (err instanceof NotFoundError) {
       return c.json({ error: err.code, message: err.message }, 404);
@@ -132,34 +219,60 @@ export function createApp(opts: CreateAppOptions): Hono {
 
   app.get("/health", (c) => c.json({ ok: true, name: "opencms" }));
 
-  // Content types -------------------------------------------------------------
-  app.get("/api/content-types", async (c) => c.json({ items: await types.list() }));
+  // Auth ----------------------------------------------------------------------
+  // better-auth owns everything under /api/auth/*: sign-in/out, session,
+  // user management (admin plugin) and API keys (api-key plugin).
+  app.on(["GET", "POST"], "/api/auth/*", (c) => opts.auth.handler(c.req.raw));
 
-  app.post("/api/content-types", async (c) => {
+  // Every other /api route resolves an actor first. A bad API key is a hard
+  // 401 rather than a downgrade to anonymous, so misconfigured clients fail
+  // loudly instead of silently reading only published content.
+  app.use("/api/*", async (c, next) => {
+    c.set("actor", await resolveActor(opts.auth, c.req.raw.headers));
+    await next();
+  });
+
+  // Content types -------------------------------------------------------------
+  // Schema is the admins' domain; editors may read it (the entry editor
+  // needs field definitions), anonymous consumers may not.
+  app.get("/api/content-types", requireRole("editor"), async (c) =>
+    c.json({ items: await types.list() })
+  );
+
+  app.post("/api/content-types", requireRole("admin"), async (c) => {
     const body = await jsonBody(c);
     const created = await types.create(body as never);
     return c.json(created, 201);
   });
 
-  app.get("/api/content-types/:name", async (c) => c.json(await types.get(c.req.param("name"))));
+  app.get("/api/content-types/:name", requireRole("editor"), async (c) =>
+    c.json(await types.get(c.req.param("name")))
+  );
 
-  app.put("/api/content-types/:name", async (c) => {
+  app.put("/api/content-types/:name", requireRole("admin"), async (c) => {
     const body = await jsonBody(c);
     return c.json(await types.update(c.req.param("name"), body as never));
   });
 
-  app.delete("/api/content-types/:name", async (c) => {
+  app.delete("/api/content-types/:name", requireRole("admin"), async (c) => {
     await types.delete(c.req.param("name"));
     return c.body(null, 204);
   });
 
   // Entries ---------------------------------------------------------------------
+  // Reads are public but anonymous requests only ever see published entries.
   app.get("/api/content/:type", async (c) => {
     const query = parseQuery(new URL(c.req.url));
+    if (c.get("actor").role === null) {
+      query.filter = [
+        ...(query.filter ?? []),
+        { field: "status", op: "eq", value: "published" },
+      ];
+    }
     return c.json(await entries.query(c.req.param("type"), query));
   });
 
-  app.post("/api/content/:type", async (c) => {
+  app.post("/api/content/:type", requireRole("editor"), async (c) => {
     const body = entryCreateSchema.safeParse(await jsonBody(c));
     if (!body.success) {
       throw new ValidationError("invalid entry payload", [
@@ -171,14 +284,21 @@ export function createApp(opts: CreateAppOptions): Hono {
   });
 
   app.get("/api/content/:type/slug/:slug", async (c) =>
-    c.json(await entries.getBySlug(c.req.param("type"), c.req.param("slug")))
+    c.json(
+      visibleTo(
+        c.get("actor"),
+        await entries.getBySlug(c.req.param("type"), c.req.param("slug"))
+      )
+    )
   );
 
   app.get("/api/content/:type/:id", async (c) =>
-    c.json(await entries.getById(c.req.param("type"), c.req.param("id")))
+    c.json(
+      visibleTo(c.get("actor"), await entries.getById(c.req.param("type"), c.req.param("id")))
+    )
   );
 
-  app.patch("/api/content/:type/:id", async (c) => {
+  app.patch("/api/content/:type/:id", requireRole("editor"), async (c) => {
     const body = entryUpdateSchema.safeParse(await jsonBody(c));
     if (!body.success) {
       throw new ValidationError("invalid entry payload", [
@@ -188,16 +308,16 @@ export function createApp(opts: CreateAppOptions): Hono {
     return c.json(await entries.update(c.req.param("type"), c.req.param("id"), body.data));
   });
 
-  app.delete("/api/content/:type/:id", async (c) => {
+  app.delete("/api/content/:type/:id", requireRole("editor"), async (c) => {
     await entries.delete(c.req.param("type"), c.req.param("id"));
     return c.body(null, 204);
   });
 
-  app.post("/api/content/:type/:id/publish", async (c) =>
+  app.post("/api/content/:type/:id/publish", requireRole("editor"), async (c) =>
     c.json(await entries.publish(c.req.param("type"), c.req.param("id")))
   );
 
-  app.post("/api/content/:type/:id/unpublish", async (c) =>
+  app.post("/api/content/:type/:id/unpublish", requireRole("editor"), async (c) =>
     c.json(await entries.unpublish(c.req.param("type"), c.req.param("id")))
   );
 
