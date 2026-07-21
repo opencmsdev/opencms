@@ -1,5 +1,5 @@
 {
-  "name": "@opencms/connector-sqlite",
+  "name": "@opencms/connector-d1",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -12,6 +12,7 @@
     "@opencms/sqlite-dialect": "workspace:*"
   },
   "devDependencies": {
-    "@opencms/test-kit": "workspace:*"
+    "@opencms/test-kit": "workspace:*",
+    "miniflare": "^4.0.0"
   }
 }

@@ -4,146 +4,29 @@ import type {
   DataConnector,
   Entry,
   EntryQuery,
-  Filter,
   QueryResult,
   Sort,
 } from "@opencms/core";
+import {
+  INIT_STATEMENTS,
+  buildOrderBy,
+  buildWhere,
+  createIndexSql,
+  dropIndexSql,
+  indexName,
+  rowToEntry,
+  type EntryRow,
+  type SqlParam,
+} from "@opencms/sqlite-dialect";
 
 /**
- * DataConnector for SQLite via bun:sqlite.
+ * DataConnector for SQLite via bun:sqlite (the self-hosted profile).
  *
- * Fixed schema, no runtime DDL except CREATE INDEX. Typed payloads live in a
- * JSON column; fields flagged `indexed` get a composite (type, json_extract)
- * expression index so filtered queries are B-tree lookups. The identical
- * SQL dialect runs on Cloudflare D1, which is the next connector.
+ * All SQL comes from @opencms/sqlite-dialect, shared verbatim with the
+ * Cloudflare D1 connector. Fixed schema, no runtime DDL except CREATE INDEX:
+ * fields flagged `indexed` get a composite (type, json_extract) expression
+ * index so filtered queries are B-tree lookups.
  */
-
-const SYSTEM_COLUMNS: Record<string, string> = {
-  id: "id",
-  slug: "slug",
-  status: "status",
-  createdAt: "created_at",
-  updatedAt: "updated_at",
-  publishedAt: "published_at",
-};
-
-const SAFE_NAME = /^[a-zA-Z0-9_]+$/;
-
-function assertSafeName(name: string): string {
-  if (!SAFE_NAME.test(name)) throw new Error(`unsafe identifier: ${name}`);
-  return name;
-}
-
-/** SQL expression addressing a queryable field. */
-function fieldExpr(field: string): string {
-  const col = SYSTEM_COLUMNS[field];
-  if (col) return col;
-  assertSafeName(field);
-  return `json_extract(data, '$.${field}')`;
-}
-
-/** JS filter values to SQLite-comparable values (booleans become 0/1). */
-function sqlValue(v: unknown): string | number | null {
-  if (typeof v === "boolean") return v ? 1 : 0;
-  if (typeof v === "number" || typeof v === "string") return v;
-  if (v === null || v === undefined) return null;
-  return String(v);
-}
-
-function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, (m) => `\\${m}`);
-}
-
-interface Where {
-  sql: string;
-  params: (string | number | null)[];
-}
-
-function buildWhere(type: string, filters: Filter[]): Where {
-  const clauses: string[] = ["type = ?"];
-  const params: (string | number | null)[] = [type];
-
-  for (const f of filters) {
-    const expr = fieldExpr(f.field);
-    switch (f.op) {
-      case "eq":
-        clauses.push(`${expr} = ?`);
-        params.push(sqlValue(f.value));
-        break;
-      case "ne":
-        clauses.push(`(${expr} IS NULL OR ${expr} <> ?)`);
-        params.push(sqlValue(f.value));
-        break;
-      case "lt":
-      case "lte":
-      case "gt":
-      case "gte": {
-        const op = { lt: "<", lte: "<=", gt: ">", gte: ">=" }[f.op];
-        clauses.push(`${expr} ${op} ?`);
-        params.push(sqlValue(f.value));
-        break;
-      }
-      case "in":
-      case "nin": {
-        const values = Array.isArray(f.value) ? f.value : [];
-        const marks = values.map(() => "?").join(", ");
-        if (values.length === 0) {
-          clauses.push(f.op === "in" ? "0" : "1");
-          break;
-        }
-        if (f.op === "in") {
-          clauses.push(`${expr} IN (${marks})`);
-        } else {
-          clauses.push(`(${expr} IS NULL OR ${expr} NOT IN (${marks}))`);
-        }
-        params.push(...values.map(sqlValue));
-        break;
-      }
-      case "contains":
-        clauses.push(`${expr} LIKE ? ESCAPE '\\'`);
-        params.push(`%${escapeLike(String(f.value ?? ""))}%`);
-        break;
-      case "exists":
-        clauses.push(f.value === false ? `${expr} IS NULL` : `${expr} IS NOT NULL`);
-        break;
-    }
-  }
-  return { sql: clauses.join(" AND "), params };
-}
-
-function buildOrderBy(sort: Sort[]): string {
-  const parts = sort.map((s) => {
-    const dir = s.dir === "desc" ? "DESC" : "ASC";
-    return `${fieldExpr(s.field)} ${dir}`;
-  });
-  parts.push("id ASC"); // stable tiebreaker for deterministic pagination
-  return parts.join(", ");
-}
-
-interface EntryRow {
-  id: string;
-  type: string;
-  slug: string;
-  status: string;
-  data: string;
-  created_at: string;
-  updated_at: string;
-  published_at: string | null;
-}
-
-function rowToEntry(row: EntryRow): Entry {
-  return {
-    id: row.id,
-    type: row.type,
-    slug: row.slug,
-    status: row.status as Entry["status"],
-    data: JSON.parse(row.data) as Record<string, unknown>,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    publishedAt: row.published_at,
-  };
-}
-
 export interface SQLiteConnectorOptions {
   /** File path or ":memory:" (default). */
   path?: string;
@@ -159,31 +42,7 @@ export class SQLiteDataConnector implements DataConnector {
   }
 
   async init(): Promise<void> {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS content_types (
-        name TEXT PRIMARY KEY,
-        definition TEXT NOT NULL
-      )
-    `);
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS entries (
-        id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        slug TEXT NOT NULL,
-        status TEXT NOT NULL,
-        data TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        published_at TEXT,
-        PRIMARY KEY (type, id)
-      )
-    `);
-    this.db.run(
-      "CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_type_slug ON entries(type, slug)"
-    );
-    this.db.run(
-      "CREATE INDEX IF NOT EXISTS idx_entries_type_status_created ON entries(type, status, created_at)"
-    );
+    for (const sql of INIT_STATEMENTS) this.db.run(sql);
   }
 
   // Content types -------------------------------------------------------------
@@ -214,13 +73,9 @@ export class SQLiteDataConnector implements DataConnector {
   }
 
   async deleteType(name: string): Promise<void> {
-    this.dropFieldIndexes(name);
+    for (const idx of this.listFieldIndexes(name)) this.db.run(dropIndexSql(idx));
     this.db.query("DELETE FROM entries WHERE type = ?").run(name);
     this.db.query("DELETE FROM content_types WHERE name = ?").run(name);
-  }
-
-  private indexName(type: string, field: string): string {
-    return `idx_e_${assertSafeName(type)}_${assertSafeName(field)}`;
   }
 
   private listFieldIndexes(type: string): string[] {
@@ -233,12 +88,6 @@ export class SQLiteDataConnector implements DataConnector {
     return rows.map((r) => r.name).filter((n) => n.startsWith(`idx_e_${type}_`));
   }
 
-  private dropFieldIndexes(type: string): void {
-    for (const name of this.listFieldIndexes(type)) {
-      this.db.run(`DROP INDEX IF EXISTS "${assertSafeName(name)}"`);
-    }
-  }
-
   /**
    * Composite (type, json_extract) expression indexes for fields flagged
    * `indexed`. Stale indexes for fields no longer flagged are dropped.
@@ -247,15 +96,13 @@ export class SQLiteDataConnector implements DataConnector {
   async ensureIndexes(def: ContentTypeDef): Promise<void> {
     const wanted = new Map<string, string>();
     for (const f of def.fields) {
-      if (f.indexed) wanted.set(this.indexName(def.name, f.name), f.name);
+      if (f.indexed) wanted.set(indexName(def.name, f.name), f.name);
     }
     for (const existing of this.listFieldIndexes(def.name)) {
-      if (!wanted.has(existing)) this.db.run(`DROP INDEX IF EXISTS "${existing}"`);
+      if (!wanted.has(existing)) this.db.run(dropIndexSql(existing));
     }
     for (const [idx, field] of wanted) {
-      this.db.run(
-        `CREATE INDEX IF NOT EXISTS "${idx}" ON entries(type, json_extract(data, '$.${assertSafeName(field)}'))`
-      );
+      this.db.run(createIndexSql(idx, field));
     }
   }
 
@@ -325,14 +172,14 @@ export class SQLiteDataConnector implements DataConnector {
     const offset = query.offset ?? 0;
 
     const items = this.db
-      .query<EntryRow, (string | number | null)[]>(
+      .query<EntryRow, SqlParam[]>(
         `SELECT * FROM entries WHERE ${where.sql} ORDER BY ${buildOrderBy(sort)} LIMIT ? OFFSET ?`
       )
       .all(...where.params, limit, offset)
       .map(rowToEntry);
 
     const totalRow = this.db
-      .query<{ n: number }, (string | number | null)[]>(
+      .query<{ n: number }, SqlParam[]>(
         `SELECT COUNT(*) AS n FROM entries WHERE ${where.sql}`
       )
       .get(...where.params);

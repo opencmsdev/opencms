@@ -1,0 +1,9 @@
+name = "opencms-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "opencms"
+# Fill in after `wrangler d1 create opencms` (see docs/DEPLOY_CLOUDFLARE.md)
+database_id = "REPLACE_WITH_YOUR_DATABASE_ID"

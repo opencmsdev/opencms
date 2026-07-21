@@ -10,7 +10,7 @@ Everything that touches infrastructure is a connector behind an interface:
 
 | Concern | Interface | First-party connectors |
 |---|---|---|
-| Data | `DataConnector` | SQLite (done), Cloudflare D1, Postgres |
+| Data | `DataConnector` | SQLite (done), Cloudflare D1 (done), Postgres |
 | Object storage | `StorageConnector` | S3-compatible (R2, MinIO, AWS) |
 | Compute | plain Hono app | Bun server, Cloudflare Workers |
 | Hosting | static admin SPA | anywhere |
@@ -24,7 +24,9 @@ This is what makes connectors small and schema evolution migration-free.
 ## Packages
 
 - `@opencms/core`: content engine. Types, Zod schema building, `ContentTypeService`, `EntryService`, the connector interfaces, and a reference in-memory connector.
-- `@opencms/connector-sqlite`: `DataConnector` on `bun:sqlite`.
+- `@opencms/sqlite-dialect`: the SQL shared by all SQLite-family connectors. Pure functions, no driver imports.
+- `@opencms/connector-sqlite`: `DataConnector` on `bun:sqlite` (self-hosted profile).
+- `@opencms/connector-d1`: `DataConnector` on Cloudflare D1. Conformance runs against real workerd via Miniflare. See `docs/DEPLOY_CLOUDFLARE.md`.
 - `@opencms/api`: the REST Admin API as a runtime-agnostic Hono app. Runs on Bun and Cloudflare Workers unchanged.
 - `@opencms/test-kit`: the conformance suite. A connector is valid if and only if it passes this suite.
 
@@ -51,7 +53,11 @@ runDataConnectorSuite("my-connector", async () => ({
 
 ## Roadmap
 
-1. Core + SQLite + REST API (this repo, now)
-2. Cloudflare: D1 + R2 connectors, one-command Workers deploy
-3. Admin UI (React, per DESIGN.md), auth via better-auth
-4. MCP server surface, Postgres connector, connector SDK docs
+Tracked in Linear (project OpenCMS).
+
+1. ~~M1: core + SQLite + REST API~~ done
+2. M2: Cloudflare, D1 connector done; R2 comes with media (M5)
+3. M3: auth (better-auth)
+4. M4: admin UI (React, per DESIGN.md), Playwright E2E
+5. M5: media, S3-compatible storage connector (R2, MinIO, AWS)
+6. M6: MCP server surface; then Postgres connector + connector SDK docs
