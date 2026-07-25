@@ -8,6 +8,9 @@
   ],
   "scripts": {
     "test": "bun test packages",
+    "test:unit": "bun test packages",
+    "test:e2e": "bun run build:admin && bun run --cwd apps/admin e2e",
+    "test:all": "bun run typecheck && bun run test:unit && bun run test:e2e",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/admin/tsconfig.json",
     "dev": "bun run apps/dev/index.ts",
     "build:admin": "bun run --cwd apps/admin build",

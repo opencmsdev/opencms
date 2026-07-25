@@ -244,7 +244,14 @@ function FieldInput({ field, value, onChange, id }: {
     case "boolean":
       return (
         <Label className="flex items-center gap-2 cursor-pointer py-2 font-normal">
-          <Checkbox checked={value === true} onCheckedChange={(v) => onChange(v === true)} />
+          {/* A Radix checkbox renders a <button>, which a wrapping <label> cannot
+              name, so the accessible name has to be set explicitly. */}
+          <Checkbox
+            id={id}
+            aria-label={field.label ?? field.name}
+            checked={value === true}
+            onCheckedChange={(v) => onChange(v === true)}
+          />
           <span className="text-sm">{field.label ?? field.name}</span>
         </Label>
       );
@@ -452,7 +459,7 @@ export function EntryEditorScreen() {
           {def.fields.map((f) => (
             <div key={f.name}>
               {f.kind === "boolean" ? (
-                <FieldInput field={f} value={values[f.name] ?? false} onChange={(v) => setValues((s) => ({ ...s, [f.name]: v }))} />
+                <FieldInput id={`entry-field-${f.name}`} field={f} value={values[f.name] ?? false} onChange={(v) => setValues((s) => ({ ...s, [f.name]: v }))} />
               ) : (
                 <Field
                   label={`${f.label ?? f.name}${f.required ? " *" : ""}`}

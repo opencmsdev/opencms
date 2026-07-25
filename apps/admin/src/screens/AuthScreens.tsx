@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { api } from "../api.ts";
+import { ApiError, api } from "../api.ts";
 import { useSession } from "../session.tsx";
 import { ErrorNote, Eyebrow, Field } from "../ui.tsx";
 import { Button } from "@/components/ui/button";
@@ -88,7 +88,13 @@ export function SignInScreen() {
       await api.signIn({ email, password });
       await refresh();
     } catch (err) {
-      setError(err instanceof Error && err.message.includes("(401)") ? new Error("wrong email or password") : err);
+      // Check the status, not the message: better-auth sends its own message
+      // body, so the previous string match never fired.
+      setError(
+        err instanceof ApiError && err.status === 401
+          ? new Error("wrong email or password")
+          : err
+      );
       setBusy(false);
     }
   }

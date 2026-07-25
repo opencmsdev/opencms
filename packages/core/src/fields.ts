@@ -110,7 +110,13 @@ export function buildEntrySchema(def: ContentTypeInput): z.ZodType<Record<string
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const f of def.fields) {
     let s = fieldSchema(f);
-    if (!f.required) s = s.nullish();
+    if (!f.required) {
+      s = s.nullish();
+    } else if (f.kind === "json") {
+      // z.unknown() accepts undefined, which makes the key optional inside
+      // z.object and silently defeats `required` for json fields.
+      s = s.refine((v) => v !== undefined, { message: "Required" });
+    }
     shape[f.name] = s;
   }
   return z.object(shape).strict() as unknown as z.ZodType<Record<string, unknown>>;

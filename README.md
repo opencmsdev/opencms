@@ -46,15 +46,42 @@ better-auth is mounted at `/api/auth/*` on the same Hono app, with its tables in
 
 ```bash
 bun install
-bun run test           # unit + connector conformance
-bun run typecheck
+bun run test:all       # typecheck + unit + E2E, the whole gate in one command
 bun run dev            # local API on http://localhost:3000 backed by SQLite
-
-bun run build:admin    # build the admin SPA; the dev server then serves it at /
-bun run e2e            # Playwright E2E (build the admin first)
 
 cd apps/admin && bun run dev   # UI development with hot reload (proxies /api to :3000)
 ```
+
+Individual steps:
+
+```bash
+bun run test:unit      # bun:test: core, fields, services, connector conformance
+bun run typecheck      # root tsc + apps/admin tsc (specs included)
+bun run test:e2e       # builds the admin SPA, then runs Playwright against it
+bun run build:admin    # build the admin SPA; the dev server then serves it at /
+```
+
+### Tests
+
+Two layers, both required before a change lands.
+
+`bun run test:unit` runs `bun test packages`. Do not run bare `bun test` at the
+root: it would sweep in the Playwright spec files, which need their own runner.
+The connector conformance suite in `@opencms/test-kit` is the contract every
+data connector must satisfy, and the D1 connector runs it against real workerd
+through Miniflare.
+
+`bun run test:e2e` drives the built admin SPA against a real Bun and SQLite
+stack on a throwaway database. The suite is deliberately serial: one server,
+one database, wiped once at the start, with spec files running in alphabetical
+order. `admin.spec.ts` establishes the baseline (bootstrap admin, an editor,
+the `article` type) and each later file inherits that state, so **name any new
+spec file so it sorts after `admin.spec.ts`** and give it its own content type
+when it needs to create or delete schema. Shared fixtures and helpers live in
+`apps/admin/e2e/helpers.ts`.
+
+Set `PW_CHROMIUM_PATH` to reuse a preinstalled Chromium instead of the managed
+download, which is what CI images and sandboxes usually want.
 
 First run: open http://localhost:3000 (with the admin built) and the setup screen creates the admin account, then signup closes. Or bootstrap over HTTP: `curl -X POST localhost:3000/api/auth/sign-up/email -H 'content-type: application/json' -d '{"email":"you@example.com","password":"a-strong-password","name":"You"}'`.
 
