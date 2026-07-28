@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Navigate, NavLink, Route, Routes } from "react-rou
 import { api, type ContentTypeDef } from "./api.ts";
 import { SessionProvider, useSession } from "./session.tsx";
 import { Eyebrow } from "./ui.tsx";
+import { LogoLockup } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { SetupScreen, SignInScreen } from "./screens/AuthScreens.tsx";
 import { TypeEditorScreen, TypesScreen } from "./screens/TypesScreen.tsx";
@@ -38,8 +39,8 @@ function Shell() {
     <div className="min-h-screen flex">
       <aside className="w-60 shrink-0 border-r border-hairline flex flex-col">
         <div className="px-5 py-5 border-b border-hairline">
-          <Link to="/" className="text-ink text-lg tracking-[-0.02em]">
-            OpenCMS
+          <Link to="/" aria-label="OpenCMS home">
+            <LogoLockup size={20} />
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-6">

@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from "react";
 import { ApiError, api } from "../api.ts";
 import { useSession } from "../session.tsx";
 import { ErrorNote, Eyebrow, Field } from "../ui.tsx";
+import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ function AuthFrame({ eyebrow, title, children }: {
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-2 text-center">
+          <LogoMark size={28} className="mx-auto mb-4 text-ink" title="OpenCMS" />
           <Eyebrow>{eyebrow}</Eyebrow>
           <h1 className="text-3xl text-ink tracking-[-0.03em]">{title}</h1>
         </div>
