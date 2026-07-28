@@ -16,7 +16,7 @@ the connector binding differs.
 ## 1. Install
 
 ```bash
-git clone https://github.com/TheThreshCarry/opencms.git
+git clone https://github.com/opencmsdev/opencms.git
 cd opencms
 bun install
 ```

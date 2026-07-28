@@ -4,7 +4,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TheThreshCarry/opencms.git",
+    "url": "git+https://github.com/opencmsdev/opencms.git",
     "directory": "packages/test-kit"
   },
   "type": "module",

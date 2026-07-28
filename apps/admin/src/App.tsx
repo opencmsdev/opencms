@@ -40,7 +40,7 @@ function Shell() {
       <aside className="w-60 shrink-0 border-r border-hairline flex flex-col">
         <div className="px-5 py-5 border-b border-hairline">
           <Link to="/" aria-label="OpenCMS home">
-            <LogoLockup size={20} />
+            <LogoLockup size={28} />
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-6">

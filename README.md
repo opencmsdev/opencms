@@ -2,7 +2,7 @@
 
 A modern, open source CMS with the UX WordPress made famous and the architecture 2026 deserves. Edge-native, connector-based, agent-ready.
 
-[![CI](https://github.com/TheThreshCarry/opencms/actions/workflows/ci.yml/badge.svg)](https://github.com/TheThreshCarry/opencms/actions/workflows/ci.yml)
+[![CI](https://github.com/opencmsdev/opencms/actions/workflows/ci.yml/badge.svg)](https://github.com/opencmsdev/opencms/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 **[Quickstart](./docs/QUICKSTART.md)** for a running CMS in five minutes, or
