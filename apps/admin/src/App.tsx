@@ -3,13 +3,13 @@ import { BrowserRouter, Link, Navigate, NavLink, Route, Routes } from "react-rou
 import { api, type ContentTypeDef } from "./api.ts";
 import { SessionProvider, useSession } from "./session.tsx";
 import { Eyebrow } from "./ui.tsx";
-import { LogoLockup } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { SetupScreen, SignInScreen } from "./screens/AuthScreens.tsx";
 import { TypeEditorScreen, TypesScreen } from "./screens/TypesScreen.tsx";
 import { EntriesScreen, EntryEditorScreen } from "./screens/EntriesScreen.tsx";
 import { UsersScreen } from "./screens/UsersScreen.tsx";
 import { KeysScreen } from "./screens/KeysScreen.tsx";
+import { NotFoundScreen } from "./screens/NotFoundScreen.tsx";
 
 function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
   return (
@@ -39,8 +39,8 @@ function Shell() {
     <div className="min-h-screen flex">
       <aside className="w-60 shrink-0 border-r border-hairline flex flex-col">
         <div className="px-5 py-5 border-b border-hairline">
-          <Link to="/" aria-label="OpenCMS home">
-            <LogoLockup size={28} />
+          <Link to="/" className="text-ink text-lg tracking-[-0.02em]">
+            OpenCMS
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-6">
@@ -94,7 +94,7 @@ function Shell() {
                 <Route path="/keys" element={<KeysScreen />} />
               </>
             ) : null}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundScreen />} />
           </Routes>
         </div>
       </main>
