@@ -2,7 +2,11 @@
 
 A modern, open source CMS with the UX WordPress made famous and the architecture 2026 deserves. Edge-native, connector-based, agent-ready.
 
-> Working name. Will be renamed before the first npm publish.
+[![CI](https://github.com/TheThreshCarry/opencms/actions/workflows/ci.yml/badge.svg)](https://github.com/TheThreshCarry/opencms/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+**[Quickstart](./docs/QUICKSTART.md)** for a running CMS in five minutes, or
+**[deploy to Cloudflare](./docs/DEPLOY_CLOUDFLARE.md)** for the edge profile.
 
 ## Architecture
 
@@ -107,3 +111,14 @@ Tracked in Linear (project OpenCMS).
 4. ~~M4: admin UI (React + shadcn per DESIGN.md), Playwright E2E~~ done
 5. M5: media, S3-compatible storage connector (R2, MinIO, AWS)
 6. M6: MCP server surface; then Postgres connector + connector SDK docs
+
+## Docs
+
+- [Quickstart](./docs/QUICKSTART.md): install, model content, publish, read it back over HTTP.
+- [Deploy to Cloudflare](./docs/DEPLOY_CLOUDFLARE.md): the edge profile on Workers and D1.
+- [CORS](./docs/CORS.md): cross-origin access for browser frontends.
+- [DESIGN.md](./DESIGN.md): the admin UI design system.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).

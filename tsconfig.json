@@ -38,7 +38,8 @@
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
-    "apps/*/**/*.ts"
+    "apps/*/**/*.ts",
+    "scripts/**/*.ts"
   ],
   "exclude": [
     "apps/admin"

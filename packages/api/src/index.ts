@@ -15,6 +15,9 @@ import {
   type Filter,
   type Sort,
 } from "@opencms/core";
+import { cors, type CorsOptions, type CorsOrigin } from "./cors.ts";
+
+export { cors, type CorsOptions, type CorsOrigin };
 
 /**
  * The Admin API as a runtime-agnostic Hono app.
@@ -63,6 +66,12 @@ export interface AuthConnector {
 export interface CreateAppOptions {
   data: DataConnector;
   auth: AuthConnector;
+  /**
+   * Cross-origin access for browser clients. Defaults to `origin: "*"` with
+   * credentials off, so a frontend on any origin can read published content
+   * while cookies stay same-origin. Pass `false` to emit no CORS headers.
+   */
+  cors?: CorsOptions | false;
 }
 
 const entryCreateSchema = z
@@ -198,6 +207,10 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   const types = new ContentTypeService(opts.data);
   const entries = new EntryService(opts.data);
   const app = new Hono<AppEnv>();
+
+  // First in the chain: a preflight carries no credentials, so it must be
+  // answered before anything tries to resolve an actor from it.
+  if (opts.cors !== false) app.use("*", cors(opts.cors));
 
   app.onError((err, c) => {
     if (err instanceof ValidationError) {

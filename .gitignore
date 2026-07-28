@@ -10,3 +10,4 @@ dist/
 _to_delete/
 test-results/
 playwright-report/
+_xfer/

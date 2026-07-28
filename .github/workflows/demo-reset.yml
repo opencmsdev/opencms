@@ -1,0 +1,59 @@
+name: Reset demo
+
+# The public demo hands out admin credentials, so its content is disposable
+# by design. Wipe and re-seed it nightly.
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  reset:
+    name: wipe and re-seed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: demo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Content tables plus better-auth's. Dropping rather than deleting rows
+      # keeps this correct if the schema ever changes; both inits recreate
+      # everything idempotently on the next request.
+      - name: Drop every table
+        working-directory: apps/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          bunx wrangler d1 execute opencms-demo --remote --yes --command "
+            DROP TABLE IF EXISTS entries;
+            DROP TABLE IF EXISTS content_types;
+            DROP TABLE IF EXISTS apikey;
+            DROP TABLE IF EXISTS session;
+            DROP TABLE IF EXISTS account;
+            DROP TABLE IF EXISTS verification;
+            DROP TABLE IF EXISTS user;
+          "
+
+      # One request is enough: the Worker recreates the content and auth
+      # schema lazily on first use.
+      - name: Recreate the schema
+        run: curl -fsS "${{ secrets.DEMO_URL }}/health" > /dev/null
+
+      - name: Re-seed
+        env:
+          OPENCMS_URL: ${{ secrets.DEMO_URL }}
+          OPENCMS_EMAIL: demo@opencms.dev
+          OPENCMS_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+        run: bun run seed:demo
+
+      - name: Verify the demo is readable
+        run: |
+          curl -fsS "${{ secrets.DEMO_URL }}/api/content/article" | grep -q '"total"'

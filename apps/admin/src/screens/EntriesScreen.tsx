@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, type ContentTypeDef, type Entry, type FieldDef } from "../api.ts";
 import {
@@ -332,6 +332,16 @@ export function EntryEditorScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
+  /**
+   * The entry id whose data currently populates `values`. Hydrating is a
+   * one-shot per entry: without this, a fetch that lands after the user has
+   * started typing would overwrite their edits with the server copy, and the
+   * next save would silently persist the reverted text. That is most likely
+   * straight after creating an entry, where the redirect triggers a fetch for
+   * data the editor already holds.
+   */
+  const hydratedFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!type) return;
     api.getType(type).then((d) => {
@@ -342,11 +352,22 @@ export function EntryEditorScreen() {
 
   useEffect(() => {
     if (!type || isNew || !def) return;
+    if (hydratedFor.current === id) return;
+
+    let cancelled = false;
     api.getEntry(type, id).then((e) => {
+      // Bail on a response that arrived after we moved on, or after another
+      // path (a create, a save) already populated this entry.
+      if (cancelled || hydratedFor.current === id) return;
+      hydratedFor.current = id;
       setEntry(e);
       setSlug(e.slug);
       setValues(toDraftValues(def, e.data));
     }, setError);
+
+    return () => {
+      cancelled = true;
+    };
   }, [type, id, isNew, def]);
 
   async function save(statusOverride?: "draft" | "published") {
@@ -361,6 +382,13 @@ export function EntryEditorScreen() {
           ...(statusOverride ? { status: statusOverride } : {}),
           data,
         });
+        // Claim the new id so the redirect below does not kick off a fetch
+        // that overwrites whatever the user types next. `values` is left
+        // exactly as typed: the save succeeded, so there is nothing to
+        // correct, and rewriting the buffer under the cursor loses edits.
+        hydratedFor.current = created.id;
+        setEntry(created);
+        setSlug(created.slug);
         navigate(`/content/${type}/${created.id}`);
       } else {
         const updated = await api.updateEntry(type, id, {
@@ -368,6 +396,7 @@ export function EntryEditorScreen() {
           ...(statusOverride ? { status: statusOverride } : {}),
           data,
         });
+        hydratedFor.current = updated.id;
         setEntry(updated);
         setSlug(updated.slug);
         setValues(toDraftValues(def, updated.data));

@@ -2,6 +2,12 @@
   "name": "@opencms/worker",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheThreshCarry/opencms.git",
+    "directory": "apps/worker"
+  },
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
