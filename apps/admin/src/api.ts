@@ -108,6 +108,8 @@ const post = (body: unknown): RequestInit => ({
 
 export const api = {
   // Setup + session ---------------------------------------------------------
+  health: () => request<{ ok: boolean; name: string; version: string }>("/health"),
+
   needsSetup: () => request<{ needsSetup: boolean }>("/api/setup"),
   getSession: () =>
     request<{ user: SessionUser } | null>("/api/auth/get-session"),

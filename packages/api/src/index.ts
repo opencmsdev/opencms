@@ -14,6 +14,7 @@ import {
   type EntryQuery,
   type Filter,
   type Sort,
+  VERSION,
 } from "@opencms/core";
 import { cors, type CorsOptions, type CorsOrigin } from "./cors.ts";
 
@@ -232,7 +233,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     return c.json({ error: "internal", message: "internal server error" }, 500);
   });
 
-  app.get("/health", (c) => c.json({ ok: true, name: "opencms" }));
+  app.get("/health", (c) => c.json({ ok: true, name: "opencms", version: VERSION }));
 
   // Auth ----------------------------------------------------------------------
   // better-auth owns everything under /api/auth/*: sign-in/out, session,

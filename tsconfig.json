@@ -32,6 +32,9 @@
       ],
       "@opencms/auth": [
         "./packages/auth/src/index.ts"
+      ],
+      "@opencms/connector-s3": [
+        "./packages/connector-s3/src/index.ts"
       ]
     }
   },

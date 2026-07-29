@@ -294,3 +294,10 @@ export function runDataConnectorSuite(name: string, factory: HarnessFactory): vo
     });
   });
 }
+
+export {
+  runStorageConnectorSuite,
+  type StorageHarness,
+  type StorageHarnessFactory,
+} from "./storage.ts";
+export { createS3Fake, type S3Fake } from "./s3-fake.ts";

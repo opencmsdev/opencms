@@ -11,6 +11,29 @@ import { UsersScreen } from "./screens/UsersScreen.tsx";
 import { KeysScreen } from "./screens/KeysScreen.tsx";
 import { NotFoundScreen } from "./screens/NotFoundScreen.tsx";
 
+/**
+ * The version of the server this admin is talking to, read from /health rather
+ * than baked in at build time. That distinction matters: the admin SPA can be
+ * served from a different deploy than the API, and the number worth showing is
+ * the one a bug report should quote, which is the server's.
+ */
+function ServerVersion() {
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.health().then(
+      (h) => setVersion(h.version),
+      // A version chip is not worth an error state; absent is fine.
+      () => setVersion(null)
+    );
+  }, []);
+
+  if (!version) return null;
+  return (
+    <span className="font-mono text-[10px] tracking-[0.08em] text-mute">v{version}</span>
+  );
+}
+
 function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
   return (
     <NavLink
@@ -38,10 +61,11 @@ function Shell() {
   return (
     <div className="min-h-screen flex">
       <aside className="w-60 shrink-0 border-r border-hairline flex flex-col">
-        <div className="px-5 py-5 border-b border-hairline">
+        <div className="px-5 py-5 border-b border-hairline flex items-baseline gap-2">
           <Link to="/" className="text-ink text-lg tracking-[-0.02em]">
             OpenCMS
           </Link>
+          <ServerVersion />
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-6">
           <div className="space-y-1">
