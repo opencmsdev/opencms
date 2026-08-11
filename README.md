@@ -56,16 +56,20 @@ bunx opencms init      # or: npx opencms init
 The wizard asks what you want: the backend is required (self-hosted Bun +
 SQLite, or Cloudflare Workers + D1), the frontend host and a CDN cache are
 optional. It then collects the data each choice needs (URLs, ports, worker and
-database names, CORS origins, TTL, admin account) and ends by printing a
-complete prompt for a coding agent (Claude Code, Cursor, ...) that performs
-the whole setup. The prompt is also saved to `opencms-agent-prompt.md`
-(`--out <file>` to change, `--no-write` to print only).
+database names, CORS origins, TTL, admin account), clones this repository
+into `./<project>`, records the choices in `opencms.config.ts`, and writes
+the profile config: `.env` with a generated `BETTER_AUTH_SECRET` for the Bun
+profile, or `apps/worker/wrangler.toml` for Cloudflare. It ends by printing a
+complete prompt for a coding agent (Claude Code, Cursor, ...) that finishes
+the setup; the prompt is copied to your clipboard and saved to
+`opencms-agent-prompt.md` in the project folder (`--out <file>` to change,
+`--no-write` to print only, `--no-setup` to skip the clone and only generate
+the prompt).
 
-The wizard itself installs and deploys nothing, and it never asks for
-secrets: the generated prompt instructs the agent to create
-`BETTER_AUTH_SECRET` and the admin password at setup time and keep them out
-of git. Until the package is published to npm, run it from a checkout with
-`bun run cli init`.
+Secrets never leave your machine: the generated secret lives in the
+untracked `.env`, the prompt never contains one, and the agent is instructed
+to create the admin password at setup time and keep it out of git. Until the
+package is published to npm, run it from a checkout with `bun run cli init`.
 
 ## Develop
 

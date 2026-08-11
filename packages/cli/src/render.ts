@@ -4,11 +4,16 @@
  * must stay in sync with docs/QUICKSTART.md, docs/DEPLOY_CLOUDFLARE.md and
  * docs/CORS.md; the generated prompt points the agent at those docs too.
  *
- * The wizard collects no secrets, so the prompt instructs the agent to
- * generate BETTER_AUTH_SECRET and the admin password at setup time.
+ * Two variants: the default assumes the agent starts from nothing (clone
+ * included); `scaffolded` assumes `opencms init` already cloned the repo and
+ * materialized the choices (opencms.config.ts, .env or wrangler.toml), so
+ * the prompt starts from that folder and never regenerates its secrets.
+ *
+ * The wizard collects no secrets, and no secret ever appears in the prompt.
  */
 import type { InitConfig } from "./config.ts";
 import { apiBaseUrl, corsOrigins } from "./config.ts";
+import { projectDirName } from "./scaffold.ts";
 
 const FRONTEND_HOST_LABELS: Record<string, string> = {
   vercel: "Vercel",
@@ -67,7 +72,12 @@ export function summaryRows(config: InitConfig): SummaryRow[] {
   return rows;
 }
 
-export function renderAgentPrompt(config: InitConfig): string {
+export function renderAgentPrompt(
+  config: InitConfig,
+  opts: { scaffolded?: boolean } = {},
+): string {
+  const scaffolded = opts.scaffolded ?? false;
+  const dir = projectDirName(config.projectName);
   const backend = config.backend;
   const api = apiBaseUrl(backend);
   const origins = corsOrigins(config);
@@ -104,22 +114,42 @@ export function renderAgentPrompt(config: InitConfig): string {
     "| Setting | Value |",
     "|---|---|",
     ...summaryRows(config).map((row) => `| ${row.label} | ${row.value} |`),
+    ...(scaffolded ? [`| Local folder | ./${dir} (already cloned and configured) |`] : []),
     "",
     "## Steps",
     "",
   );
 
-  heading("Get the code and install");
-  lines.push(
-    "Requires Bun 1.2 or newer (https://bun.sh).",
-    "",
-    "```bash",
-    "git clone https://github.com/opencmsdev/opencms.git",
-    "cd opencms",
-    "bun install",
-    "```",
-    "",
-  );
+  if (scaffolded) {
+    heading("Enter the project and install");
+    lines.push(
+      "`opencms init` already cloned the repository and wrote the configuration:",
+      "`opencms.config.ts` records the choices above" +
+        (backend.kind === "bun-sqlite"
+          ? ", and `.env` carries the runtime settings, including a generated `BETTER_AUTH_SECRET`. Do not regenerate or print it, and never commit `.env`."
+          : ", and `apps/worker/wrangler.toml` already carries the worker name and D1 database name."),
+      "",
+      "```bash",
+      `cd ${dir}`,
+      "bun install",
+      "```",
+      "",
+      "Requires Bun 1.2 or newer (https://bun.sh).",
+      "",
+    );
+  } else {
+    heading("Get the code and install");
+    lines.push(
+      "Requires Bun 1.2 or newer (https://bun.sh).",
+      "",
+      "```bash",
+      "git clone https://github.com/opencmsdev/opencms.git",
+      "cd opencms",
+      "bun install",
+      "```",
+      "",
+    );
+  }
 
   if (backend.kind === "bun-sqlite") {
     heading("Build the admin UI");
@@ -132,21 +162,36 @@ export function renderAgentPrompt(config: InitConfig): string {
       "",
     );
 
-    heading("Configure and start the server");
-    lines.push(
-      "Generate the auth secret at setup time. Never hardcode it, never commit",
-      "it, and store it only in the environment (or the host's secret store).",
-      "",
-      "```bash",
-      'export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"',
-      `export OPENCMS_DB="${backend.dbPath}"`,
-      `export OPENCMS_PORT=${backend.port}`,
-      "bun run dev",
-      "```",
-      "",
-      `The server prints \`OpenCMS dev API on http://localhost:${backend.port}\`.`,
-      "",
-    );
+    if (scaffolded) {
+      heading("Start the server");
+      lines.push(
+        "The `.env` file already sets `OPENCMS_DB`, `OPENCMS_PORT` and",
+        "`BETTER_AUTH_SECRET`, and Bun loads it automatically:",
+        "",
+        "```bash",
+        "bun run dev",
+        "```",
+        "",
+        `The server prints \`OpenCMS dev API on http://localhost:${backend.port}\`.`,
+        "",
+      );
+    } else {
+      heading("Configure and start the server");
+      lines.push(
+        "Generate the auth secret at setup time. Never hardcode it, never commit",
+        "it, and store it only in the environment (or the host's secret store).",
+        "",
+        "```bash",
+        'export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"',
+        `export OPENCMS_DB="${backend.dbPath}"`,
+        `export OPENCMS_PORT=${backend.port}`,
+        "bun run dev",
+        "```",
+        "",
+        `The server prints \`OpenCMS dev API on http://localhost:${backend.port}\`.`,
+        "",
+      );
+    }
 
     const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)([:/]|$)/.test(backend.publicUrl);
     if (!isLocal) {
@@ -157,9 +202,9 @@ export function renderAgentPrompt(config: InitConfig): string {
         "there. Also set the canonical URL so auth cookies and origin checks use",
         "it:",
         "",
-        "```bash",
-        `export BETTER_AUTH_URL="${backend.publicUrl}"`,
-        "```",
+        ...(scaffolded
+          ? [`\`.env\` already sets \`BETTER_AUTH_URL=${backend.publicUrl}\`.`]
+          : ["```bash", `export BETTER_AUTH_URL="${backend.publicUrl}"`, "```"]),
         "",
         "Run the process under a supervisor (systemd, a container, or similar) so",
         "it restarts on failure and on boot.",
@@ -175,11 +220,19 @@ export function renderAgentPrompt(config: InitConfig): string {
       `bunx wrangler d1 create ${backend.d1Name}`,
       "```",
       "",
-      "Edit `apps/worker/wrangler.toml`:",
-      "",
-      `- Set \`name = "${backend.workerName}"\` at the top.`,
-      `- In the \`[[d1_databases]]\` block set \`database_name = "${backend.d1Name}"\``,
-      "  and paste the `database_id` printed by the create command.",
+      ...(scaffolded
+        ? [
+            "`apps/worker/wrangler.toml` already carries the worker name and",
+            "`database_name`; the one thing left is to paste the `database_id`",
+            "printed by the create command into its `[[d1_databases]]` block.",
+          ]
+        : [
+            "Edit `apps/worker/wrangler.toml`:",
+            "",
+            `- Set \`name = "${backend.workerName}"\` at the top.`,
+            `- In the \`[[d1_databases]]\` block set \`database_name = "${backend.d1Name}"\``,
+            "  and paste the `database_id` printed by the create command.",
+          ]),
       "",
       "No migration step exists or is needed: the Worker creates the content and",
       "auth tables on first request, idempotently.",
@@ -212,13 +265,22 @@ export function renderAgentPrompt(config: InitConfig): string {
       heading("Attach the custom domain");
       lines.push(
         `Attach \`${backend.customDomain}\` to the Worker as a custom domain (the`,
-        "zone must be on the same Cloudflare account). Then set the canonical URL",
-        "in `apps/worker/wrangler.toml` and redeploy:",
+        "zone must be on the same Cloudflare account).",
         "",
-        "```toml",
-        "[vars]",
-        `BETTER_AUTH_URL = "https://${backend.customDomain}"`,
-        "```",
+        ...(scaffolded
+          ? [
+              "`wrangler.toml` already sets the canonical URL in `[vars]`",
+              `(\`BETTER_AUTH_URL = "https://${backend.customDomain}"\`), so just redeploy:`,
+            ]
+          : [
+              "Then set the canonical URL",
+              "in `apps/worker/wrangler.toml` and redeploy:",
+              "",
+              "```toml",
+              "[vars]",
+              `BETTER_AUTH_URL = "https://${backend.customDomain}"`,
+              "```",
+            ]),
         "",
         "```bash",
         "bunx wrangler deploy",
@@ -361,8 +423,12 @@ export function renderAgentPrompt(config: InitConfig): string {
     );
   }
   lines.push(
-    "- [ ] `BETTER_AUTH_SECRET` is a generated random value, present only in the",
-    "      environment or secret store, and absent from git.",
+    scaffolded && backend.kind === "bun-sqlite"
+      ? "- [ ] `BETTER_AUTH_SECRET` lives only in the untracked `.env` (or a secret"
+      : "- [ ] `BETTER_AUTH_SECRET` is a generated random value, present only in the",
+    scaffolded && backend.kind === "bun-sqlite"
+      ? "      store) and is absent from git."
+      : "      environment or secret store, and absent from git.",
     "",
     "## Report back",
     "",

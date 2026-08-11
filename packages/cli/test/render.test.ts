@@ -132,6 +132,34 @@ describe("renderAgentPrompt, edge cases", () => {
   });
 });
 
+describe("renderAgentPrompt, scaffolded variant", () => {
+  test("self-hosted starts from the configured clone, secret stays in .env", () => {
+    const prompt = renderAgentPrompt(selfHosted, { scaffolded: true });
+    expect(prompt).toContain("| Local folder | ./blog (already cloned and configured) |");
+    expect(prompt).toContain("cd blog");
+    expect(prompt).not.toContain("git clone");
+    expect(prompt).toContain("`.env` file already sets");
+    expect(prompt).not.toContain('export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"');
+    expect(prompt).toContain("openssl rand -base64 24");
+  });
+
+  test("cloudflare keeps only the database_id paste as manual toml work", () => {
+    const prompt = renderAgentPrompt(edge, { scaffolded: true });
+    expect(prompt).toContain("already carries the worker name");
+    expect(prompt).not.toContain('- Set `name = "opencms-api"` at the top.');
+    expect(prompt).toContain("paste the `database_id`");
+    expect(prompt).toContain("already sets the canonical URL in `[vars]`");
+  });
+
+  test("scaffolded output still has no em or en dashes", () => {
+    for (const config of [selfHosted, edge]) {
+      const prompt = renderAgentPrompt(config, { scaffolded: true });
+      expect(prompt).not.toContain("—");
+      expect(prompt).not.toContain("–");
+    }
+  });
+});
+
 describe("summaryRows", () => {
   test("no frontend reads as API only", () => {
     const rows = summaryRows(selfHosted);

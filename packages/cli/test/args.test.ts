@@ -3,7 +3,17 @@ import { parseArgs } from "../src/args.ts";
 
 describe("parseArgs", () => {
   test("plain init", () => {
-    expect(parseArgs(["init"])).toEqual({ command: "init", write: true, help: false, version: false });
+    expect(parseArgs(["init"])).toEqual({
+      command: "init",
+      write: true,
+      setup: true,
+      help: false,
+      version: false,
+    });
+  });
+
+  test("--no-setup keeps the wizard prompt-only", () => {
+    expect(parseArgs(["init", "--no-setup"])).toMatchObject({ command: "init", setup: false });
   });
 
   test("--out with a space and with =", () => {
@@ -22,7 +32,7 @@ describe("parseArgs", () => {
   test("help and version flags", () => {
     expect(parseArgs(["--help"])).toMatchObject({ help: true });
     expect(parseArgs(["-v"])).toMatchObject({ version: true });
-    expect(parseArgs([])).toEqual({ write: true, help: false, version: false });
+    expect(parseArgs([])).toEqual({ write: true, setup: true, help: false, version: false });
   });
 
   test("unknown input errors", () => {

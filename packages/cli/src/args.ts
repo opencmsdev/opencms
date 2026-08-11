@@ -4,17 +4,20 @@ export interface CliArgs {
   out?: string;
   /** False when --no-write was passed: print to stdout only. */
   write: boolean;
+  /** False when --no-setup was passed: generate the prompt only. */
+  setup: boolean;
   help: boolean;
   version: boolean;
 }
 
 export function parseArgs(argv: string[]): CliArgs | { error: string } {
-  const args: CliArgs = { write: true, help: false, version: false };
+  const args: CliArgs = { write: true, setup: true, help: false, version: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === "-h" || arg === "--help") args.help = true;
     else if (arg === "-v" || arg === "--version") args.version = true;
     else if (arg === "--no-write") args.write = false;
+    else if (arg === "--no-setup") args.setup = false;
     else if (arg === "--out" || arg.startsWith("--out=")) {
       const value = arg.includes("=") ? arg.slice("--out=".length) : argv[++i];
       if (!value) return { error: "--out needs a file path." };
