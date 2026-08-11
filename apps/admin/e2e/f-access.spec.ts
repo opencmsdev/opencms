@@ -33,8 +33,10 @@ test("admin routes are unreachable for an editor, even by URL", async ({ page })
   for (const path of ["/types", "/types/new", "/types/article", "/users", "/keys"]) {
     await page.goto(path);
     // The admin routes are not registered for an editor, so the catch-all
-    // redirects home, which then redirects to the first content type.
-    await expect(page).toHaveURL(/\/content\/article$/);
+    // renders the same 404 screen any unknown address gets. No redirect,
+    // no hint that the route exists for anyone else.
+    await expect(page.getByRole("heading", { name: "No such screen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Content types" })).toHaveCount(0);
   }
 });
 
