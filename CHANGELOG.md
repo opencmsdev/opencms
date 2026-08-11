@@ -17,6 +17,11 @@ report. Run it after changing the version and commit the result.
 
 ### Added
 
+- `opencms init`: an interactive CLI wizard (`npx opencms init` or `bunx
+  opencms init`) that picks your stack, backend, frontend host and cache,
+  clones the project, writes `opencms.config.ts` plus the profile config
+  (`.env` or `wrangler.toml`), and hands you an agent-ready setup prompt,
+  copied to the clipboard. `--no-setup` generates the prompt only.
 - Media library (M5). Upload, browse, pick and delete files from the admin,
   backed by any storage connector. Uploads land under date-prefixed keys that
   never collide, media fields get a visual picker with previews, and files are

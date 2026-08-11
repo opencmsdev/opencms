@@ -1,6 +1,6 @@
 {
   "name": "opencms",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenCMS CLI. `opencms init` walks you through choosing a stack and prints an agent-ready prompt that sets everything up.",
   "license": "MIT",
   "repository": {
