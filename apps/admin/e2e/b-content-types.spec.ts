@@ -116,6 +116,71 @@ test("remove a field", async ({ page }) => {
   await expect(page.locator(widgetCard)).toContainText("2 fields");
 });
 
+test("the default input takes the field's own shape", async ({ page }) => {
+  await signIn(page, ADMIN);
+  await page.goto("/types/widget");
+  await expect(page.getByTestId("field-1")).toBeVisible();
+
+  // A boolean default is a true/false choice, not a text box.
+  await page.getByTestId("add-field").click();
+  const flag = page.getByTestId("field-2");
+  await flag.getByRole("textbox", { name: "Field name" }).fill("flag");
+  await flag.getByRole("button", { name: "Kind" }).click();
+  await page.getByRole("option", { name: "boolean", exact: true }).click();
+  const flagDefault = flag.getByRole("combobox", { name: "Default" });
+  await expect(flagDefault).toBeVisible();
+  await expect(flag.getByRole("textbox", { name: "Default" })).toHaveCount(0);
+  await flagDefault.click();
+  await page.getByRole("option", { name: "true", exact: true }).click();
+
+  // A number default is a number input.
+  await page.getByTestId("add-field").click();
+  const rating = page.getByTestId("field-3");
+  await rating.getByRole("textbox", { name: "Field name" }).fill("rating");
+  await rating.getByRole("button", { name: "Kind" }).click();
+  await page.getByRole("option", { name: "number", exact: true }).click();
+  await rating.getByRole("spinbutton", { name: "Default" }).fill("5");
+
+  await page.getByTestId("save-type").click();
+  await expect(page.getByRole("heading", { name: "Content types" })).toBeVisible();
+
+  // The server received real types: an entry missing both fields gets them.
+  const created = await page.request.post("/api/content/widget", {
+    data: { data: { name: "defaulted" } },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const entry = (await created.json()) as {
+    id: string;
+    data: { flag?: unknown; rating?: unknown };
+  };
+  expect(entry.data.flag).toBe(true);
+  expect(entry.data.rating).toBe(5);
+  // Clean up: the delete-type test below needs an entry-free widget.
+  await page.request.delete(`/api/content/widget/${entry.id}`);
+
+  // The stored defaults hydrate back into their own controls.
+  await page.goto("/types/widget");
+  await expect(
+    page.getByTestId("field-2").getByRole("combobox", { name: "Default" })
+  ).toContainText("true");
+  await expect(
+    page.getByTestId("field-3").getByRole("spinbutton", { name: "Default" })
+  ).toHaveValue("5");
+
+  // Switching kind clears a default typed for the previous kind.
+  await page.getByTestId("field-3").getByRole("button", { name: "Kind" }).click();
+  await page.getByRole("option", { name: "text", exact: true }).click();
+  await expect(
+    page.getByTestId("field-3").getByRole("textbox", { name: "Default" })
+  ).toHaveValue("");
+
+  // Put the type back the way the rest of the file expects.
+  await page.getByTestId("field-3").getByRole("button", { name: "Remove" }).click();
+  await page.getByTestId("field-2").getByRole("button", { name: "Remove" }).click();
+  await page.getByTestId("save-type").click();
+  await expect(page.locator(widgetCard)).toContainText("2 fields");
+});
+
 test("deleting a type is confirmed, and cancellable", async ({ page }) => {
   await signIn(page, ADMIN);
   await page.goto("/types/widget");

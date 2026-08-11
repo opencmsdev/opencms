@@ -13,6 +13,15 @@ report. Run it after changing the version and commit the result.
 
 ## [Unreleased]
 
+### Fixed
+
+- In the content type builder, the default-value input now takes the field's
+  own shape: a boolean offers true/false, a select offers its own options, a
+  number and a date get native inputs, JSON and rich text get textareas.
+  Previously every kind got a plain text box, so a boolean default read as
+  free text. Switching a field's kind also clears a default typed for the
+  previous kind.
+
 ## [0.2.0] - 2026-08-11
 
 ### Added

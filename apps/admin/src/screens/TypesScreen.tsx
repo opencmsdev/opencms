@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, type ContentTypeDef, type FieldDef } from "../api.ts";
-import { ConfirmButton, EmptyState, ErrorNote, Eyebrow, Field, PageHeader } from "../ui.tsx";
+import {
+  ConfirmButton,
+  EmptyState,
+  ErrorNote,
+  Eyebrow,
+  Field,
+  PageHeader,
+  SimpleSelect,
+} from "../ui.tsx";
 import { KindSelect, kindMeta } from "../field-kinds.tsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export function TypesScreen() {
   const [types, setTypes] = useState<ContentTypeDef[] | null>(null);
@@ -95,9 +104,106 @@ function fromDraft(d: DraftField): FieldDef {
       } catch {
         f.default = raw;
       }
+    } else if (d.kind === "date") {
+      // The picker emits local `YYYY-MM-DDTHH:mm`; entries store ISO.
+      const date = new Date(raw);
+      f.default = Number.isNaN(date.getTime()) ? raw : date.toISOString();
     } else f.default = raw;
   }
   return f;
+}
+
+/** Radix Select items cannot carry an empty value; stand in for "no default". */
+const NO_DEFAULT = "__none__";
+
+/**
+ * The default-value control, shaped by the field's kind the same way the
+ * entry editor shapes its inputs: a boolean gets true/false, a select gets
+ * its own options, a number gets a number input. A text box for everything
+ * was wrong for most kinds and actively misleading for boolean.
+ */
+function DefaultInput({ kind, value, onChange, id, options }: {
+  kind: FieldDef["kind"];
+  value: string;
+  onChange: (v: string) => void;
+  id: string;
+  options: string[];
+}) {
+  switch (kind) {
+    case "boolean":
+      return (
+        <SimpleSelect
+          id={id}
+          ariaLabel="Default"
+          value={value === "true" || value === "false" ? value : NO_DEFAULT}
+          onValueChange={(v) => onChange(v === NO_DEFAULT ? "" : v)}
+          options={[
+            { value: NO_DEFAULT, label: "(no default)" },
+            { value: "true", label: "true" },
+            { value: "false", label: "false" },
+          ]}
+        />
+      );
+    case "select":
+      return (
+        <SimpleSelect
+          id={id}
+          ariaLabel="Default"
+          value={value !== "" && options.includes(value) ? value : NO_DEFAULT}
+          onValueChange={(v) => onChange(v === NO_DEFAULT ? "" : v)}
+          options={[
+            { value: NO_DEFAULT, label: "(no default)" },
+            ...options.map((o) => ({ value: o, label: o })),
+          ]}
+        />
+      );
+    case "number":
+      return (
+        <Input id={id} type="number" value={value} onChange={(e) => onChange(e.target.value)} />
+      );
+    case "date":
+      return (
+        <Input
+          id={id}
+          type="datetime-local"
+          value={value.slice(0, 16)}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      );
+    case "json":
+      return (
+        <Textarea
+          id={id}
+          className="min-h-20 font-mono text-xs"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder='{"key": "value"}'
+        />
+      );
+    case "richtext":
+      return (
+        <Textarea
+          id={id}
+          className="min-h-20"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      );
+    case "media":
+      return (
+        <Input
+          id={id}
+          className="font-mono text-xs"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="storage key, e.g. 2026/08/photo-ab12cd34.png"
+        />
+      );
+    default:
+      // text; reference never shows a default (a hardcoded entry id would
+      // dangle the moment that entry is deleted).
+      return <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} />;
+  }
 }
 
 export function TypeEditorScreen() {
@@ -252,7 +358,9 @@ export function TypeEditorScreen() {
                   <KindSelect
                     id={`field-kind-${i}`}
                     value={f.kind}
-                    onChange={(kind) => patchField(f._key, { kind })}
+                    // A default typed for one kind is meaningless for the
+                    // next, so switching kind clears it.
+                    onChange={(kind) => patchField(f._key, { kind, _default: "" })}
                   />
                 </Field>
               </div>
@@ -284,13 +392,26 @@ export function TypeEditorScreen() {
                   </Field>
                 ) : (
                   <Field label="Default" hint="Applied when the field is absent on create." htmlFor={`field-default-${i}`}>
-                    <Input
+                    <DefaultInput
                       id={`field-default-${i}`}
+                      kind={f.kind}
                       value={f._default ?? ""}
-                      onChange={(e) => patchField(f._key, { _default: e.target.value })}
+                      onChange={(v) => patchField(f._key, { _default: v })}
+                      options={[]}
                     />
                   </Field>
                 )}
+                {f.kind === "select" ? (
+                  <Field label="Default" hint="One of the options above." htmlFor={`field-default-${i}`}>
+                    <DefaultInput
+                      id={`field-default-${i}`}
+                      kind={f.kind}
+                      value={f._default ?? ""}
+                      onChange={(v) => patchField(f._key, { _default: v })}
+                      options={(f._options ?? "").split(",").map((s) => s.trim()).filter(Boolean)}
+                    />
+                  </Field>
+                ) : null}
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-5 text-sm">
