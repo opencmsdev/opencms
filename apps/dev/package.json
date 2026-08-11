@@ -12,6 +12,8 @@
   "dependencies": {
     "@opencms/api": "workspace:*",
     "@opencms/auth": "workspace:*",
+    "@opencms/connector-postgres": "workspace:*",
+    "@opencms/connector-s3": "workspace:*",
     "@opencms/connector-sqlite": "workspace:*",
     "@opencms/core": "workspace:*"
   }

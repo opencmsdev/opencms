@@ -301,3 +301,8 @@ export {
   type StorageHarnessFactory,
 } from "./storage.ts";
 export { createS3Fake, type S3Fake } from "./s3-fake.ts";
+export {
+  runCacheConnectorSuite,
+  type CacheHarness,
+  type CacheHarnessFactory,
+} from "./cache.ts";

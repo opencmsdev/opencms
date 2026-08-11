@@ -5,8 +5,9 @@ Budget about five minutes. Everything here uses the self-hosted profile: Bun
 plus a single SQLite file, no services to provision.
 
 To run the same thing on Cloudflare Workers and D1 instead, see
-[DEPLOY_CLOUDFLARE.md](./DEPLOY_CLOUDFLARE.md). The code is identical; only
-the connector binding differs.
+[DEPLOY_CLOUDFLARE.md](./DEPLOY_CLOUDFLARE.md); for a container, see
+[DOCKER.md](./DOCKER.md). The code is identical; only the connector binding
+differs.
 
 ## Prerequisites
 

@@ -24,6 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { MediaKeyPreview, MediaPickerDialog } from "../components/media.tsx";
+import { useSession } from "../session.tsx";
 
 const PAGE_SIZE = 25;
 
@@ -234,6 +236,57 @@ function fromDraftValues(def: ContentTypeDef, values: DraftValues): Record<strin
   return data;
 }
 
+/**
+ * A media field holds a storage key. With the media library available it gets
+ * a picker; the key stays hand-editable either way, since a key can also come
+ * from outside the library (a script, another instance's export).
+ */
+function MediaFieldInput({ value, onChange, id, name }: {
+  value: string;
+  onChange: (v: string) => void;
+  id?: string;
+  name: string;
+}) {
+  const { mediaEnabled } = useSession();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  return (
+    <div>
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          name={name}
+          className="font-mono text-xs"
+          placeholder="storage key, e.g. 2026/08/photo-ab12cd34.png"
+        />
+        {mediaEnabled ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPickerOpen(true)}
+            data-testid={`browse-${name}`}
+          >
+            Browse
+          </Button>
+        ) : null}
+      </div>
+      {value ? <MediaKeyPreview mediaKey={value} /> : null}
+      {mediaEnabled ? (
+        <MediaPickerDialog
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onSelect={(obj) => {
+            onChange(obj.key);
+            setPickerOpen(false);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function FieldInput({ field, value, onChange, id }: {
   field: FieldDef;
   value: string | boolean;
@@ -306,8 +359,17 @@ function FieldInput({ field, value, onChange, id }: {
           name={field.name}
         />
       );
+    case "media":
+      return (
+        <MediaFieldInput
+          id={id}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+          name={field.name}
+        />
+      );
     default:
-      // text, reference (entry id), media (storage key, real picker in M5)
+      // text, reference (entry id)
       return (
         <Input
           id={id}
@@ -492,7 +554,7 @@ export function EntryEditorScreen() {
               ) : (
                 <Field
                   label={`${f.label ?? f.name}${f.required ? " *" : ""}`}
-                  hint={f.kind === "media" ? "Storage key; the media library arrives in M5." : undefined}
+                  hint={undefined}
                   htmlFor={`entry-field-${f.name}`}
                 >
                   <FieldInput

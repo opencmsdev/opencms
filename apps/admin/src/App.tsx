@@ -9,6 +9,7 @@ import { TypeEditorScreen, TypesScreen } from "./screens/TypesScreen.tsx";
 import { EntriesScreen, EntryEditorScreen } from "./screens/EntriesScreen.tsx";
 import { UsersScreen } from "./screens/UsersScreen.tsx";
 import { KeysScreen } from "./screens/KeysScreen.tsx";
+import { MediaScreen } from "./screens/MediaScreen.tsx";
 import { NotFoundScreen } from "./screens/NotFoundScreen.tsx";
 
 /**
@@ -50,7 +51,7 @@ function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
 }
 
 function Shell() {
-  const { user, signOut } = useSession();
+  const { user, signOut, mediaEnabled } = useSession();
   const [types, setTypes] = useState<ContentTypeDef[]>([]);
   const isAdmin = user?.role === "admin";
 
@@ -81,6 +82,14 @@ function Shell() {
               <div className="px-3 text-xs text-mute">No content types yet.</div>
             ) : null}
           </div>
+          {mediaEnabled ? (
+            <div className="space-y-1">
+              <div className="px-3 pb-1">
+                <Eyebrow>Library</Eyebrow>
+              </div>
+              <NavItem to="/media">Media</NavItem>
+            </div>
+          ) : null}
           {isAdmin ? (
             <div className="space-y-1">
               <div className="px-3 pb-1">
@@ -109,6 +118,7 @@ function Shell() {
             <Route path="/content/:type" element={<EntriesScreen />} />
             <Route path="/content/:type/new" element={<EntryEditorScreen />} />
             <Route path="/content/:type/:id" element={<EntryEditorScreen />} />
+            {mediaEnabled ? <Route path="/media" element={<MediaScreen />} /> : null}
             {isAdmin ? (
               <>
                 <Route path="/types" element={<TypesScreen />} />

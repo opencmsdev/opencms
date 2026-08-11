@@ -1,5 +1,5 @@
 /** Turn arbitrary text into a URL-safe slug. */
-export function slugify(input: string): string {
+export function slugify(input: string, fallback = "entry"): string {
   const s = input
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "") // strip diacritics
@@ -9,7 +9,7 @@ export function slugify(input: string): string {
     // trailing hyphen and produce a slug that fails isValidSlug.
     .slice(0, 80)
     .replace(/^-+|-+$/g, "");
-  return s.length > 0 ? s : "entry";
+  return s.length > 0 ? s : fallback;
 }
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

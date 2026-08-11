@@ -1,19 +1,22 @@
 import { Hono } from "hono";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { z } from "zod";
 import {
   ContentTypeService,
   EntryService,
   ForbiddenError,
+  MediaService,
   NotFoundError,
   OpenCMSError,
   UnauthorizedError,
   ValidationError,
+  type CacheConnector,
   type DataConnector,
   type Entry,
   type EntryQuery,
   type Filter,
   type Sort,
+  type StorageConnector,
   VERSION,
 } from "@opencms/core";
 import { cors, type CorsOptions, type CorsOrigin } from "./cors.ts";
@@ -68,11 +71,69 @@ export interface CreateAppOptions {
   data: DataConnector;
   auth: AuthConnector;
   /**
+   * Object storage for the media library. Optional: without it the media
+   * routes answer 404 with a clear message and `GET /api/setup` reports
+   * `media: false` so the admin UI hides the library.
+   */
+  storage?: StorageConnector;
+  /**
    * Cross-origin access for browser clients. Defaults to `origin: "*"` with
    * credentials off, so a frontend on any origin can read published content
    * while cookies stay same-origin. Pass `false` to emit no CORS headers.
    */
   cors?: CorsOptions | false;
+  /**
+   * Opt-in read cache for ANONYMOUS content reads (the only requests whose
+   * responses are cookie-independent and published-only by construction).
+   * Writes to a type invalidate it by bumping a per-type generation key, so
+   * invalidation is one `set` and needs no prefix scans; stale generations
+   * age out through the TTL. On an eventually-consistent backend (KV) other
+   * regions may serve the previous generation briefly.
+   */
+  cache?: { connector: CacheConnector; ttlSeconds?: number };
+}
+
+const CACHE_DEFAULT_TTL_SECONDS = 60;
+
+/** djb2-xor, hex. Collision-tolerant use only: a stale hit is another query's
+ * cached JSON, which the TTL bounds; keys stay short for KV's 512-byte cap. */
+function hashKey(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(16);
+}
+
+/** Anonymous read-through cache with per-type generations. */
+class ReadCache {
+  constructor(
+    private readonly cache: CacheConnector,
+    private readonly ttlSeconds: number
+  ) {}
+
+  private genKey(type: string): string {
+    return `oc1:gen:${type}`;
+  }
+
+  private async generation(type: string): Promise<string> {
+    return (await this.cache.get(this.genKey(type))) ?? "0";
+  }
+
+  async invalidate(type: string): Promise<void> {
+    const next = Number(await this.generation(type)) + 1;
+    // No TTL: losing the generation key must never resurrect old entries,
+    // and a missing key falls back to generation 0, which bumping leaves.
+    await this.cache.set(this.genKey(type), String(next));
+  }
+
+  async lookup(type: string, request: string): Promise<{ key: string; hit: string | null }> {
+    const gen = await this.generation(type);
+    const key = `oc1:read:${type}:${gen}:${hashKey(request)}`;
+    return { key, hit: await this.cache.get(key) };
+  }
+
+  async store(key: string, body: string): Promise<void> {
+    await this.cache.set(key, body, { ttlSeconds: this.ttlSeconds });
+  }
 }
 
 const entryCreateSchema = z
@@ -207,6 +268,13 @@ function visibleTo(actor: Actor, entry: Entry): Entry {
 export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   const types = new ContentTypeService(opts.data);
   const entries = new EntryService(opts.data);
+  const readCache = opts.cache
+    ? new ReadCache(opts.cache.connector, opts.cache.ttlSeconds ?? CACHE_DEFAULT_TTL_SECONDS)
+    : null;
+  /** Fire on every successful write touching a type's content or schema. */
+  const invalidate = async (type: string) => {
+    await readCache?.invalidate(type);
+  };
   const app = new Hono<AppEnv>();
 
   // First in the chain: a preflight carries no credentials, so it must be
@@ -252,7 +320,10 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // screen. Leaks only the boolean "a user exists", which the closed signup
   // endpoint reveals anyway.
   app.get("/api/setup", async (c) =>
-    c.json({ needsSetup: (await opts.auth.needsSetup?.()) ?? false })
+    c.json({
+      needsSetup: (await opts.auth.needsSetup?.()) ?? false,
+      media: opts.storage !== undefined,
+    })
   );
 
   // Content types -------------------------------------------------------------
@@ -274,25 +345,62 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
 
   app.put("/api/content-types/:name", requireRole("admin"), async (c) => {
     const body = await jsonBody(c);
-    return c.json(await types.update(c.req.param("name"), body as never));
+    const updated = await types.update(c.req.param("name"), body as never);
+    await invalidate(updated.name);
+    return c.json(updated);
   });
 
   app.delete("/api/content-types/:name", requireRole("admin"), async (c) => {
     await types.delete(c.req.param("name"));
+    await invalidate(c.req.param("name"));
     return c.body(null, 204);
   });
+
+  /**
+   * Serve an anonymous read through the cache when one is configured.
+   * Only anonymous responses are cacheable: they are cookie-independent and
+   * published-only by construction. 404s (drafts included) are never cached,
+   * so a publish becomes visible immediately even without invalidation.
+   */
+  async function cachedJson(
+    c: Context<AppEnv>,
+    type: string,
+    produce: () => Promise<unknown>
+  ): Promise<Response> {
+    if (!readCache || c.get("actor").role !== null) {
+      return c.json(await produce());
+    }
+    const url = new URL(c.req.url);
+    const request = `${url.pathname}?${url.searchParams.toString()}`;
+    const { key, hit } = await readCache.lookup(type, request);
+    if (hit !== null) {
+      return c.body(hit, 200, {
+        "content-type": "application/json",
+        "x-opencms-cache": "hit",
+      });
+    }
+    const body = JSON.stringify(await produce());
+    await readCache.store(key, body);
+    return c.body(body, 200, {
+      "content-type": "application/json",
+      "x-opencms-cache": "miss",
+    });
+  }
 
   // Entries ---------------------------------------------------------------------
   // Reads are public but anonymous requests only ever see published entries.
   app.get("/api/content/:type", async (c) => {
-    const query = parseQuery(new URL(c.req.url));
-    if (c.get("actor").role === null) {
-      query.filter = [
-        ...(query.filter ?? []),
-        { field: "status", op: "eq", value: "published" },
-      ];
-    }
-    return c.json(await entries.query(c.req.param("type"), query));
+    const type = c.req.param("type");
+    return cachedJson(c, type, async () => {
+      const query = parseQuery(new URL(c.req.url));
+      if (c.get("actor").role === null) {
+        query.filter = [
+          ...(query.filter ?? []),
+          { field: "status", op: "eq", value: "published" },
+        ];
+      }
+      return entries.query(type, query);
+    });
   });
 
   app.post("/api/content/:type", requireRole("editor"), async (c) => {
@@ -303,23 +411,23 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
       ]);
     }
     const created = await entries.create(c.req.param("type"), body.data);
+    await invalidate(c.req.param("type"));
     return c.json(created, 201);
   });
 
-  app.get("/api/content/:type/slug/:slug", async (c) =>
-    c.json(
-      visibleTo(
-        c.get("actor"),
-        await entries.getBySlug(c.req.param("type"), c.req.param("slug"))
-      )
-    )
-  );
+  app.get("/api/content/:type/slug/:slug", async (c) => {
+    const type = c.req.param("type");
+    return cachedJson(c, type, async () =>
+      visibleTo(c.get("actor"), await entries.getBySlug(type, c.req.param("slug")))
+    );
+  });
 
-  app.get("/api/content/:type/:id", async (c) =>
-    c.json(
-      visibleTo(c.get("actor"), await entries.getById(c.req.param("type"), c.req.param("id")))
-    )
-  );
+  app.get("/api/content/:type/:id", async (c) => {
+    const type = c.req.param("type");
+    return cachedJson(c, type, async () =>
+      visibleTo(c.get("actor"), await entries.getById(type, c.req.param("id")))
+    );
+  });
 
   app.patch("/api/content/:type/:id", requireRole("editor"), async (c) => {
     const body = entryUpdateSchema.safeParse(await jsonBody(c));
@@ -328,21 +436,106 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
         { path: "body", message: "expected {slug?, status?, data?}" },
       ]);
     }
-    return c.json(await entries.update(c.req.param("type"), c.req.param("id"), body.data));
+    const updated = await entries.update(c.req.param("type"), c.req.param("id"), body.data);
+    await invalidate(c.req.param("type"));
+    return c.json(updated);
   });
 
   app.delete("/api/content/:type/:id", requireRole("editor"), async (c) => {
     await entries.delete(c.req.param("type"), c.req.param("id"));
+    await invalidate(c.req.param("type"));
     return c.body(null, 204);
   });
 
-  app.post("/api/content/:type/:id/publish", requireRole("editor"), async (c) =>
-    c.json(await entries.publish(c.req.param("type"), c.req.param("id")))
-  );
+  app.post("/api/content/:type/:id/publish", requireRole("editor"), async (c) => {
+    const published = await entries.publish(c.req.param("type"), c.req.param("id"));
+    await invalidate(c.req.param("type"));
+    return c.json(published);
+  });
 
-  app.post("/api/content/:type/:id/unpublish", requireRole("editor"), async (c) =>
-    c.json(await entries.unpublish(c.req.param("type"), c.req.param("id")))
-  );
+  app.post("/api/content/:type/:id/unpublish", requireRole("editor"), async (c) => {
+    const unpublished = await entries.unpublish(c.req.param("type"), c.req.param("id"));
+    await invalidate(c.req.param("type"));
+    return c.json(unpublished);
+  });
+
+  // Media ---------------------------------------------------------------------
+  // Reads are public and anonymous, matching published entries: a headless
+  // CMS whose images need a token to embed defeats the point. Writes are the
+  // editors' domain, like any other content.
+  const media = opts.storage ? new MediaService(opts.storage) : null;
+
+  /** The routes exist either way so an unconfigured install fails clearly. */
+  function mediaOrThrow(): MediaService {
+    if (!media) {
+      throw new NotFoundError(
+        "media is not configured: pass a storage connector to createApp"
+      );
+    }
+    return media;
+  }
+
+  /** Key = the encoded path after /api/media/, decoded segment by segment. */
+  function mediaKey(c: { req: { path: string } }): string {
+    const raw = c.req.path.slice("/api/media/".length);
+    try {
+      return raw.split("/").map(decodeURIComponent).join("/");
+    } catch {
+      throw new ValidationError(`invalid media key "${raw}"`);
+    }
+  }
+
+  app.post("/api/media", requireRole("editor"), async (c) => {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!(file instanceof File)) {
+      throw new ValidationError("expected multipart/form-data with a `file` part");
+    }
+    const info = await mediaOrThrow().upload(file.name, file.stream(), {
+      contentType: file.type || "application/octet-stream",
+      contentLength: file.size,
+    });
+    return c.json({ ...info, url: `/api/media/${info.key}` }, 201);
+  });
+
+  app.get("/api/media", requireRole("editor"), async (c) => {
+    const url = new URL(c.req.url);
+    const limit = url.searchParams.get("limit");
+    if (limit !== null && !Number.isInteger(Number(limit))) {
+      throw new ValidationError("limit must be an integer");
+    }
+    return c.json(
+      await mediaOrThrow().list({
+        prefix: url.searchParams.get("prefix") ?? undefined,
+        limit: limit !== null ? Number(limit) : undefined,
+        cursor: url.searchParams.get("cursor") ?? undefined,
+      })
+    );
+  });
+
+  app.get("/api/media/*", async (c) => {
+    const svc = mediaOrThrow();
+    const key = mediaKey(c);
+
+    // Backends with a public base (e.g. an R2 custom domain) serve their own
+    // bytes; everything else streams through the API.
+    const direct = await svc.publicUrl(key);
+    if (direct) return c.redirect(direct, 302);
+
+    const { info, body } = await svc.serve(key);
+    return c.body(body, 200, {
+      "content-type": info.contentType,
+      "content-length": String(info.size),
+      // Generated keys are unique per upload, so the bytes behind a key
+      // never legitimately change.
+      "cache-control": "public, max-age=31536000, immutable",
+    });
+  });
+
+  app.delete("/api/media/*", requireRole("editor"), async (c) => {
+    await mediaOrThrow().delete(mediaKey(c));
+    return c.body(null, 204);
+  });
 
   return app;
 }

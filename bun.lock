@@ -43,6 +43,8 @@
       "dependencies": {
         "@opencms/api": "workspace:*",
         "@opencms/auth": "workspace:*",
+        "@opencms/connector-postgres": "workspace:*",
+        "@opencms/connector-s3": "workspace:*",
         "@opencms/connector-sqlite": "workspace:*",
         "@opencms/core": "workspace:*",
       },
@@ -54,6 +56,8 @@
         "@opencms/api": "workspace:*",
         "@opencms/auth": "workspace:*",
         "@opencms/connector-d1": "workspace:*",
+        "@opencms/connector-kv": "workspace:*",
+        "@opencms/connector-s3": "workspace:*",
         "hono": "^4.6.0",
       },
       "devDependencies": {
@@ -80,13 +84,6 @@
         "better-auth": "^1.6.23",
       },
     },
-    "packages/cli": {
-      "name": "opencms",
-      "version": "0.1.0",
-      "bin": {
-        "opencms": "./dist/index.js",
-      },
-    },
     "packages/connector-d1": {
       "name": "@opencms/connector-d1",
       "version": "0.1.0",
@@ -97,6 +94,27 @@
       "devDependencies": {
         "@opencms/test-kit": "workspace:*",
         "miniflare": "^4.0.0",
+      },
+    },
+    "packages/connector-kv": {
+      "name": "@opencms/connector-kv",
+      "version": "0.1.0",
+      "dependencies": {
+        "@opencms/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@opencms/test-kit": "workspace:*",
+        "miniflare": "^4.0.0",
+      },
+    },
+    "packages/connector-postgres": {
+      "name": "@opencms/connector-postgres",
+      "version": "0.1.0",
+      "dependencies": {
+        "@opencms/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@opencms/test-kit": "workspace:*",
       },
     },
     "packages/connector-s3": {
@@ -395,6 +413,10 @@
     "@opencms/auth": ["@opencms/auth@workspace:packages/auth"],
 
     "@opencms/connector-d1": ["@opencms/connector-d1@workspace:packages/connector-d1"],
+
+    "@opencms/connector-kv": ["@opencms/connector-kv@workspace:packages/connector-kv"],
+
+    "@opencms/connector-postgres": ["@opencms/connector-postgres@workspace:packages/connector-postgres"],
 
     "@opencms/connector-s3": ["@opencms/connector-s3@workspace:packages/connector-s3"],
 
@@ -1007,8 +1029,6 @@
     "onetime": ["onetime@5.1.2", "", { "dependencies": { "mimic-fn": "^2.1.0" } }, "sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg=="],
 
     "open": ["open@11.0.0", "", { "dependencies": { "default-browser": "^5.4.0", "define-lazy-prop": "^3.0.0", "is-in-ssh": "^1.0.0", "is-inside-container": "^1.0.0", "powershell-utils": "^0.1.0", "wsl-utils": "^0.3.0" } }, "sha512-smsWv2LzFjP03xmvFoJ331ss6h+jixfA4UUV/Bsiyuu4YJPfN+FIQGOIiv4w9/+MoHkfkJ22UIaQWRVFRfH6Vw=="],
-
-    "opencms": ["opencms@workspace:packages/cli"],
 
     "ora": ["ora@8.2.0", "", { "dependencies": { "chalk": "^5.3.0", "cli-cursor": "^5.0.0", "cli-spinners": "^2.9.2", "is-interactive": "^2.0.0", "is-unicode-supported": "^2.0.0", "log-symbols": "^6.0.0", "stdin-discarder": "^0.2.2", "string-width": "^7.2.0", "strip-ansi": "^7.1.0" } }, "sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw=="],
 

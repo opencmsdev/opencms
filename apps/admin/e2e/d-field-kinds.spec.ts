@@ -49,8 +49,9 @@ test("each kind renders the right control", async ({ page }) => {
     "placeholder",
     "id of a article entry"
   );
+  // The media field is a key input plus the library picker (M5).
   await expect(page.getByRole("textbox", { name: "hero" })).toBeVisible();
-  await expect(page.getByText("Storage key; the media library arrives in M5.")).toBeVisible();
+  await expect(page.getByTestId("browse-hero")).toBeVisible();
 });
 
 test("every kind round-trips through save and reload", async ({ page }) => {

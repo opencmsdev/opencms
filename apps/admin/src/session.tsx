@@ -5,6 +5,8 @@ import { api, type SessionUser } from "./api.ts";
 interface SessionState {
   loading: boolean;
   needsSetup: boolean;
+  /** Whether the server has a storage connector, i.e. the media library exists. */
+  mediaEnabled: boolean;
   user: SessionUser | null;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -15,15 +17,18 @@ const SessionContext = createContext<SessionState | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [mediaEnabled, setMediaEnabled] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const [setup, session] = await Promise.all([api.needsSetup(), api.getSession()]);
       setNeedsSetup(setup.needsSetup);
+      setMediaEnabled(setup.media === true);
       setUser(session?.user ?? null);
     } catch {
       setNeedsSetup(false);
+      setMediaEnabled(false);
       setUser(null);
     } finally {
       setLoading(false);
@@ -43,7 +48,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   return (
-    <SessionContext.Provider value={{ loading, needsSetup, user, refresh, signOut }}>
+    <SessionContext.Provider value={{ loading, needsSetup, mediaEnabled, user, refresh, signOut }}>
       {children}
     </SessionContext.Provider>
   );

@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { MemoryDataConnector } from "@opencms/core";
+import { MemoryDataConnector, type CacheConnector, type StorageConnector } from "@opencms/core";
 import { createAuth, runAuthMigrations, toAuthConnector, type Auth } from "@opencms/auth";
 import { createApp } from "@opencms/api";
 
@@ -33,7 +33,12 @@ export const json = (method: string, body: unknown, cookie?: string): RequestIni
   body: JSON.stringify(body),
 });
 
-export async function createTestApp(): Promise<TestContext> {
+export async function createTestApp(
+  options: {
+    storage?: StorageConnector;
+    cache?: { connector: CacheConnector; ttlSeconds?: number };
+  } = {}
+): Promise<TestContext> {
   const data = new MemoryDataConnector();
   await data.init();
 
@@ -44,7 +49,12 @@ export async function createTestApp(): Promise<TestContext> {
   });
   await runAuthMigrations(auth);
 
-  const app = createApp({ data, auth: toAuthConnector(auth) });
+  const app = createApp({
+    data,
+    auth: toAuthConnector(auth),
+    storage: options.storage,
+    cache: options.cache,
+  });
 
   const res = await app.request("/api/auth/sign-up/email", json("POST", ADMIN));
   if (res.status !== 200) {

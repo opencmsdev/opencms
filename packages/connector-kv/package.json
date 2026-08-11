@@ -1,0 +1,23 @@
+{
+  "name": "@opencms/connector-kv",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opencmsdev/opencms.git",
+    "directory": "packages/connector-kv"
+  },
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@opencms/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@opencms/test-kit": "workspace:*",
+    "miniflare": "^4.0.0"
+  }
+}

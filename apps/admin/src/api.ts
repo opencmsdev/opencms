@@ -64,6 +64,14 @@ export interface AdminUser extends SessionUser {
   banned?: boolean | null;
 }
 
+export interface MediaObject {
+  key: string;
+  size: number;
+  /** Absent in listings: S3's list call does not return one. */
+  contentType?: string;
+  lastModified: string;
+}
+
 export interface ApiKeySummary {
   id: string;
   name: string | null;
@@ -110,7 +118,7 @@ export const api = {
   // Setup + session ---------------------------------------------------------
   health: () => request<{ ok: boolean; name: string; version: string }>("/health"),
 
-  needsSetup: () => request<{ needsSetup: boolean }>("/api/setup"),
+  needsSetup: () => request<{ needsSetup: boolean; media: boolean }>("/api/setup"),
   getSession: () =>
     request<{ user: SessionUser } | null>("/api/auth/get-session"),
   signUp: (input: { email: string; password: string; name: string }) =>
@@ -151,6 +159,30 @@ export const api = {
     request<Entry>(`/api/content/${type}/${id}/publish`, { method: "POST" }),
   unpublishEntry: (type: string, id: string) =>
     request<Entry>(`/api/content/${type}/${id}/unpublish`, { method: "POST" }),
+
+  // Media -------------------------------------------------------------------
+  mediaUrl: (key: string) => `/api/media/${key.split("/").map(encodeURIComponent).join("/")}`,
+  listMedia: (opts: { prefix?: string; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.prefix) q.set("prefix", opts.prefix);
+    if (opts.limit !== undefined) q.set("limit", String(opts.limit));
+    if (opts.cursor) q.set("cursor", opts.cursor);
+    const qs = q.toString();
+    return request<{ objects: MediaObject[]; cursor?: string }>(
+      `/api/media${qs ? `?${qs}` : ""}`
+    );
+  },
+  uploadMedia: (file: File) => {
+    const form = new FormData();
+    form.set("file", file);
+    // No content-type header: the browser sets the multipart boundary itself.
+    return request<MediaObject & { url: string }>("/api/media", {
+      method: "POST",
+      body: form,
+    });
+  },
+  deleteMedia: (key: string) =>
+    request<null>(api.mediaUrl(key), { method: "DELETE" }),
 
   // Users (better-auth admin plugin) ---------------------------------------
   listUsers: () =>

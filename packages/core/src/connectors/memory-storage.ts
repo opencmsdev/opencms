@@ -91,8 +91,9 @@ export class MemoryStorageConnector implements StorageConnector {
     return cursor === undefined ? { objects } : { objects, cursor };
   }
 
-  /** No HTTP surface, so nothing can be served directly from here. */
-  async publicUrl(): Promise<string | null> {
+  /** No HTTP surface, so nothing can be served directly from here. The
+   * parameter exists so subclasses (test doubles with a CDN, say) can use it. */
+  async publicUrl(_key: string): Promise<string | null> {
     return null;
   }
 }
