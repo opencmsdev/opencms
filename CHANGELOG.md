@@ -13,8 +13,42 @@ report. Run it after changing the version and commit the result.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-11
+
 ### Added
 
+- Media library (M5). Upload, browse, pick and delete files from the admin,
+  backed by any storage connector. Uploads land under date-prefixed keys that
+  never collide, media fields get a visual picker with previews, and files are
+  served publicly at `GET /api/media/<key>`, matching how published entries are
+  readable without a token. Backends with a public base URL (an R2 custom
+  domain, say) serve their own bytes via redirect instead of proxying.
+- `POST /api/media` (multipart upload), `GET /api/media` (paged listing) and
+  `DELETE /api/media/<key>` for editors; `GET /api/setup` now reports whether
+  media is configured so clients can show or hide the library.
+- The Bun dev server and the Cloudflare Worker wire storage from
+  `OPENCMS_S3_*` environment variables; without them the dev server falls back
+  to in-memory storage so the library works out of the box.
+- Docker image. A multi-stage `Dockerfile` ships the self-hosted profile as a
+  container: Bun, the API, the prebuilt admin, and the SQLite file on a
+  `/data` volume, with media, Postgres and the cache configured through the
+  same environment variables as everywhere else. The image refuses to start
+  without a real `BETTER_AUTH_SECRET`. See `docs/DOCKER.md`.
+- Cache layer. `CacheConnector` joins data and storage as the third connector
+  contract, with a conformance suite, an in-memory reference in core, and a
+  Cloudflare Workers KV connector (`@opencms/connector-kv`) proven against
+  workerd via Miniflare. Pass `createApp({ cache })` and anonymous published
+  reads are cached with per-type generation invalidation: every write to a
+  type invalidates its reads with a single key bump, no prefix scans. The
+  Worker picks it up from a `CACHE` KV binding, the dev server from
+  `OPENCMS_CACHE=memory`; off by default everywhere.
+- Postgres connector (`@opencms/connector-postgres`), built on Bun's own SQL
+  client with zero external dependencies. One connector covers anything that
+  speaks the Postgres wire protocol: self-hosted Postgres, Supabase, Neon,
+  RDS. Entry data lives in `jsonb` with typed comparisons, so filters and
+  sorts behave identically to the SQLite and D1 connectors, proven by the
+  same conformance suite run against a real server. The dev server picks it
+  up from `OPENCMS_PG_URL`.
 - S3-compatible object storage connector (`@opencms/connector-s3`), usable with
   Cloudflare R2, MinIO and AWS. Signs with SigV4 over `fetch` so it runs
   unchanged on Bun and on Cloudflare Workers.
@@ -68,5 +102,6 @@ rather than a full account.
 - Admin UI in React: first-run setup, content type builder, entry editor with
   draft and publish, user management and API keys.
 
-[Unreleased]: https://github.com/opencmsdev/opencms/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/opencmsdev/opencms/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/opencmsdev/opencms/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/opencmsdev/opencms/releases/tag/v0.1.0
