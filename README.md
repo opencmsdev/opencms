@@ -45,6 +45,27 @@ better-auth is mounted at `/api/auth/*` on the same Hono app, with its tables in
 - `@opencms/api`: the REST Admin API as a runtime-agnostic Hono app. Runs on Bun and Cloudflare Workers unchanged.
 - `@opencms/test-kit`: the conformance suite. A connector is valid if and only if it passes this suite.
 - `@opencms/admin` (apps/admin): the admin SPA. React + Vite + Tailwind v4 + shadcn components restyled per DESIGN.md (dark canvas, pills, hairlines, weight 400). First-run setup, sign-in, content-type builder, entry list and editor with draft/publish, users, API keys. Playwright E2E against the real Bun + SQLite stack.
+- `opencms` (packages/cli): the CLI. `opencms init` is an interactive wizard that turns your stack choices into an agent-ready setup prompt.
+
+## Set up with an agent
+
+```bash
+bunx opencms init      # or: npx opencms init
+```
+
+The wizard asks what you want: the backend is required (self-hosted Bun +
+SQLite, or Cloudflare Workers + D1), the frontend host and a CDN cache are
+optional. It then collects the data each choice needs (URLs, ports, worker and
+database names, CORS origins, TTL, admin account) and ends by printing a
+complete prompt for a coding agent (Claude Code, Cursor, ...) that performs
+the whole setup. The prompt is also saved to `opencms-agent-prompt.md`
+(`--out <file>` to change, `--no-write` to print only).
+
+The wizard itself installs and deploys nothing, and it never asks for
+secrets: the generated prompt instructs the agent to create
+`BETTER_AUTH_SECRET` and the admin password at setup time and keep them out
+of git. Until the package is published to npm, run it from a checkout with
+`bun run cli init`.
 
 ## Develop
 
