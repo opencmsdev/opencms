@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { InitConfig } from "../src/config.ts";
+import { bunSqlite, cloudflare, cloudflareCdn, defineConfig, sameOrigin, s3, vercel } from "../src/config.ts";
 import {
   generateSecret,
   patchWranglerToml,
@@ -8,12 +8,12 @@ import {
   renderEnvFile,
 } from "../src/scaffold.ts";
 
-const config: InitConfig = {
+const config = defineConfig({
   projectName: "My Blog",
   adminEmail: "me@example.com",
   adminName: "Mehdi",
-  backend: { kind: "bun-sqlite", publicUrl: "http://localhost:3000", port: 3000, dbPath: "opencms.db" },
-};
+  backend: bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "opencms.db" }),
+});
 
 describe("projectDirName", () => {
   test("slugifies the project name", () => {
@@ -30,22 +30,71 @@ describe("projectDirName", () => {
 describe("renderConfigTs", () => {
   const rendered = renderConfigTs(config);
 
-  test("is a typed module importing InitConfig from the monorepo", () => {
-    expect(rendered).toContain('import type { InitConfig } from "./packages/cli/src/config.ts";');
-    expect(rendered).toContain("const config: InitConfig = {");
-    expect(rendered).toContain("export default config;");
+  test("is a typed module of defineConfig plus integrations", () => {
+    expect(rendered).toContain(
+      'import { defineConfig, bunSqlite } from "./packages/cli/src/config.ts";',
+    );
+    expect(rendered).toContain("export default defineConfig({");
+    expect(rendered).toContain("backend: bunSqlite({");
+    expect(rendered).not.toContain("InitConfig");
+    expect(rendered).not.toContain('kind: "bun-sqlite"');
   });
 
   test("carries the choices with unquoted keys", () => {
     expect(rendered).toContain('projectName: "My Blog"');
-    expect(rendered).toContain('kind: "bun-sqlite"');
+    expect(rendered).toContain('publicUrl: "http://localhost:3000"');
     expect(rendered).not.toContain('"projectName":');
+  });
+
+  test("renders optional frontend and cache as their factories", () => {
+    const full = renderConfigTs(
+      defineConfig({
+        ...config,
+        frontend: vercel({
+          url: "https://blog.example.com",
+          extraOrigins: ["http://localhost:5173"],
+          credentials: true,
+        }),
+        cache: cloudflareCdn({ ttlSeconds: 60 }),
+      }),
+    );
+    expect(full).toContain(
+      "import { defineConfig, bunSqlite, vercel, cloudflareCdn } from",
+    );
+    expect(full).toContain("frontend: vercel({");
+    expect(full).toContain("cache: cloudflareCdn({");
+    expect(full).toContain('url: "https://blog.example.com"');
+    expect(full).toContain('extraOrigins: ["http://localhost:5173"]');
+    expect(full).toContain("credentials: true");
+    expect(full).toContain("ttlSeconds: 60");
+    expect(full).not.toContain('host: "vercel"');
+    expect(full).not.toContain('kind: "cloudflare-cdn"');
+  });
+
+  test("renders s3 storage without credentials", () => {
+    const rendered = renderConfigTs(
+      defineConfig({
+        ...config,
+        storage: s3({ bucket: "media", endpoint: "https://s3.example.com" }),
+      }),
+    );
+    expect(rendered).toContain("s3({");
+    expect(rendered).toContain('bucket: "media"');
+    expect(rendered).not.toContain("ACCESS_KEY");
+    expect(rendered).not.toContain('kind: "s3"');
+  });
+
+  test("same-origin frontend renders as a call with no args", () => {
+    const rendered = renderConfigTs(defineConfig({ ...config, frontend: sameOrigin() }));
+    expect(rendered).toContain("sameOrigin");
+    expect(rendered).toContain("frontend: sameOrigin(),");
+    expect(rendered).not.toContain("extraOrigins");
   });
 });
 
 describe("renderEnvFile", () => {
   test("local URL: db, port and secret, no BETTER_AUTH_URL", () => {
-    const env = renderEnvFile(config.backend as never, "s3cret");
+    const env = renderEnvFile(config.backend, "s3cret");
     expect(env).toContain("OPENCMS_DB=opencms.db");
     expect(env).toContain("OPENCMS_PORT=3000");
     expect(env).toContain("BETTER_AUTH_SECRET=s3cret");
@@ -54,7 +103,7 @@ describe("renderEnvFile", () => {
 
   test("public URL adds BETTER_AUTH_URL", () => {
     const env = renderEnvFile(
-      { kind: "bun-sqlite", publicUrl: "https://cms.example.com", port: 3000, dbPath: "x.db" },
+      bunSqlite({ publicUrl: "https://cms.example.com", port: 3000, dbPath: "x.db" }),
       "s3cret",
     );
     expect(env).toContain("BETTER_AUTH_URL=https://cms.example.com");
@@ -72,11 +121,7 @@ describe("patchWranglerToml", () => {
   ].join("\n");
 
   test("applies worker and database names", () => {
-    const patched = patchWranglerToml(toml, {
-      kind: "cloudflare",
-      workerName: "my-worker",
-      d1Name: "my-db",
-    });
+    const patched = patchWranglerToml(toml, cloudflare({ workerName: "my-worker", d1Name: "my-db" }));
     expect(patched).toContain('name = "my-worker"');
     expect(patched).toContain('database_name = "my-db"');
     expect(patched).not.toContain('name = "opencms-api"');
@@ -84,12 +129,10 @@ describe("patchWranglerToml", () => {
   });
 
   test("adds BETTER_AUTH_URL vars only with a custom domain", () => {
-    const patched = patchWranglerToml(toml, {
-      kind: "cloudflare",
-      workerName: "my-worker",
-      d1Name: "my-db",
-      customDomain: "cms.example.com",
-    });
+    const patched = patchWranglerToml(
+      toml,
+      cloudflare({ workerName: "my-worker", d1Name: "my-db", customDomain: "cms.example.com" }),
+    );
     expect(patched).toContain("[vars]");
     expect(patched).toContain('BETTER_AUTH_URL = "https://cms.example.com"');
   });

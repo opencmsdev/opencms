@@ -99,17 +99,19 @@ describe("runWizard through interactive IO", () => {
         "\r", // backend: first choice (bun-sqlite)
         "\r", // frontend: default (none)
         "\r", // cache: default (none)
+        "\r", // storage: default (none)
         "\r", // final confirm: default (yes)
       ],
     );
     const config = await runWizard(io);
-    expect(config).toEqual({
+    expect(config).toMatchObject({
       projectName: "blog",
       adminEmail: "me@example.com",
       adminName: "Admin",
       backend: { kind: "bun-sqlite", publicUrl: "http://localhost:3000", port: 3000, dbPath: "opencms.db" },
       frontend: undefined,
       cache: undefined,
+      storage: undefined,
     });
   });
 });

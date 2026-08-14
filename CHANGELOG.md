@@ -13,6 +13,29 @@ report. Run it after changing the version and commit the result.
 
 ## [Unreleased]
 
+### Added
+
+- MCP agent surface (`@opencms/mcp`). Streamable HTTP via the official
+  TypeScript SDK and a Hono app, so the same code runs on Bun and on
+  Cloudflare Workers. Tools cover content types and entries with the same
+  RBAC as REST (`x-api-key` or `Authorization: Bearer`). Official cloud
+  endpoint is `https://mcp.opencms.dev/mcp` (`apps/mcp`); self-host and the
+  API Worker expose `/mcp` on the API origin. See `docs/MCP.md`.
+- `opencms setup` reads `opencms.config.ts` and asks each integration to
+  provision itself: Bun writes `.env`, Cloudflare creates D1 and stores
+  secrets, S3/R2 ask for keys. Each integration then `test()`s the
+  connection (D1 `SELECT 1`, S3/R2 ListObjects with the stored keys).
+  Safe to re-run. Run `bunx opencms setup` after `opencms init` (needs
+  Bun so the TypeScript config can be imported).
+
+### Changed
+
+- `opencms.config.ts` is now written as typed integrations (`defineConfig`,
+  `bunSqlite()`, `vercel()`, `cloudflareCdn()`, `s3()`, ...) instead of a
+  JSON object with string discriminators, the same shape as better-auth
+  plugins. Each factory owns its own `plan` / `setup` / `test`; the CLI
+  only walks those methods.
+
 ### Fixed
 
 - In the content type builder, the default-value input now takes the field's

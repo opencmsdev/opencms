@@ -30,6 +30,9 @@
       "@opencms/api": [
         "./packages/api/src/index.ts"
       ],
+      "@opencms/mcp": [
+        "./packages/mcp/src/index.ts"
+      ],
       "@opencms/auth": [
         "./packages/auth/src/index.ts"
       ],

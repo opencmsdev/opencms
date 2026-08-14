@@ -7,6 +7,7 @@ describe("parseArgs", () => {
       command: "init",
       write: true,
       setup: true,
+      yes: false,
       help: false,
       version: false,
     });
@@ -32,7 +33,18 @@ describe("parseArgs", () => {
   test("help and version flags", () => {
     expect(parseArgs(["--help"])).toMatchObject({ help: true });
     expect(parseArgs(["-v"])).toMatchObject({ version: true });
-    expect(parseArgs([])).toEqual({ write: true, setup: true, help: false, version: false });
+    expect(parseArgs([])).toEqual({ write: true, setup: true, yes: false, help: false, version: false });
+  });
+
+  test("setup flags", () => {
+    expect(parseArgs(["setup"])).toMatchObject({ command: "setup", yes: false });
+    expect(parseArgs(["setup", "--yes"])).toMatchObject({ command: "setup", yes: true });
+    expect(parseArgs(["setup", "-y", "--cwd", "/tmp/site"])).toMatchObject({
+      command: "setup",
+      yes: true,
+      cwd: "/tmp/site",
+    });
+    expect(parseArgs(["setup", "--cwd"])).toEqual({ error: "--cwd needs a directory." });
   });
 
   test("unknown input errors", () => {

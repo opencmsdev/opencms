@@ -68,6 +68,17 @@ export function summaryRows(config: InitConfig): SummaryRow[] {
       ? `${cache.kind === "cloudflare-cdn" ? "Cloudflare CDN" : "CDN"}, TTL ${cache.ttlSeconds}s`
       : "None",
   });
+  const storage = config.storage;
+  if (!storage) {
+    rows.push({ label: "Storage", value: "None" });
+  } else if (storage.kind === "r2") {
+    rows.push({ label: "Storage", value: `Cloudflare R2 (${storage.bucket})` });
+  } else {
+    rows.push({
+      label: "Storage",
+      value: `S3 (${storage.bucket}${storage.endpoint ? `, ${storage.endpoint}` : ""})`,
+    });
+  }
   rows.push({ label: "Admin account", value: `${config.adminName} <${config.adminEmail}>` });
   return rows;
 }
@@ -107,7 +118,7 @@ export function renderAgentPrompt(
     "- Published entries are readable anonymously; drafts are invisible without",
     "  auth (404 by id and by slug).",
     "- Docs in the repo: `docs/QUICKSTART.md`, `docs/DEPLOY_CLOUDFLARE.md`,",
-    "  `docs/CORS.md`.",
+    "  `docs/CORS.md`, `docs/MCP.md`.",
     "",
     "## Target configuration",
     "",
@@ -132,7 +143,11 @@ export function renderAgentPrompt(
       "```bash",
       `cd ${dir}`,
       "bun install",
+      "bunx opencms setup",
       "```",
+      "",
+      "`opencms setup` creates D1 / R2, writes secrets, and asks for S3 keys when",
+      "those integrations are in `opencms.config.ts`. It is safe to re-run.",
       "",
       "Requires Bun 1.2 or newer (https://bun.sh).",
       "",
@@ -147,6 +162,9 @@ export function renderAgentPrompt(
       "cd opencms",
       "bun install",
       "```",
+      "",
+      "If `opencms.config.ts` is present, run `bunx opencms setup` next so D1,",
+      "secrets and S3/R2 are created from that file instead of by hand.",
       "",
     );
   }
@@ -212,82 +230,39 @@ export function renderAgentPrompt(
       );
     }
   } else {
-    heading("Authenticate wrangler and create the D1 database");
+    heading("Provision Cloudflare resources");
     lines.push(
+      "From the project root:",
+      "",
       "```bash",
-      "cd apps/worker",
-      "bunx wrangler login",
-      `bunx wrangler d1 create ${backend.d1Name}`,
+      "bunx opencms setup",
       "```",
       "",
-      ...(scaffolded
-        ? [
-            "`apps/worker/wrangler.toml` already carries the worker name and",
-            "`database_name`; the one thing left is to paste the `database_id`",
-            "printed by the create command into its `[[d1_databases]]` block.",
-          ]
-        : [
-            "Edit `apps/worker/wrangler.toml`:",
-            "",
-            `- Set \`name = "${backend.workerName}"\` at the top.`,
-            `- In the \`[[d1_databases]]\` block set \`database_name = "${backend.d1Name}"\``,
-            "  and paste the `database_id` printed by the create command.",
-          ]),
-      "",
-      "No migration step exists or is needed: the Worker creates the content and",
-      "auth tables on first request, idempotently.",
-      "",
-    );
-
-    heading("Set the auth secret");
-    lines.push(
-      "```bash",
-      "openssl rand -base64 32 | bunx wrangler secret put BETTER_AUTH_SECRET",
-      "```",
+      "This logs into Cloudflare if needed, creates the D1 database",
+      `\`${backend.d1Name}\`, writes \`database_id\` into \`apps/worker/wrangler.toml\`,`,
+      "and stores `BETTER_AUTH_SECRET`.",
+      ...(backend.customDomain
+        ? [`It also attaches \`${backend.customDomain}\` as a custom domain.`]
+        : []),
+      "R2 buckets and S3 keys are created or stored when those integrations are",
+      "in `opencms.config.ts`. Safe to re-run. No migration step exists or is",
+      "needed: the Worker creates the content and auth tables on first request.",
       "",
     );
 
     heading("Build the admin UI and deploy");
     lines.push(
       "```bash",
-      "bun run --cwd ../admin build",
-      "bunx wrangler deploy",
+      "bun run build:admin",
+      "cd apps/worker && bunx wrangler deploy",
       "```",
       "",
       backend.customDomain
-        ? "Wrangler prints the workers.dev URL; the custom domain is attached next."
+        ? `The Worker serves https://${backend.customDomain} once the zone is on this account.`
         : `Wrangler prints the deployed URL. Wherever this prompt says \`${api}\`,`,
       ...(backend.customDomain ? [] : ["substitute that real URL."]),
       "",
     );
-
-    if (backend.customDomain) {
-      heading("Attach the custom domain");
-      lines.push(
-        `Attach \`${backend.customDomain}\` to the Worker as a custom domain (the`,
-        "zone must be on the same Cloudflare account).",
-        "",
-        ...(scaffolded
-          ? [
-              "`wrangler.toml` already sets the canonical URL in `[vars]`",
-              `(\`BETTER_AUTH_URL = "https://${backend.customDomain}"\`), so just redeploy:`,
-            ]
-          : [
-              "Then set the canonical URL",
-              "in `apps/worker/wrangler.toml` and redeploy:",
-              "",
-              "```toml",
-              "[vars]",
-              `BETTER_AUTH_URL = "https://${backend.customDomain}"`,
-              "```",
-            ]),
-        "",
-        "```bash",
-        "bunx wrangler deploy",
-        "```",
-        "",
-      );
-    }
   }
 
   if (origins.length > 0) {

@@ -1,8 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import {
   apiBaseUrl,
+  assertInitConfig,
+  bunSqlite,
+  cloudflare,
+  cloudflareCdn,
   corsOrigins,
+  defineConfig,
   parseOriginList,
+  sameOrigin,
+  s3,
+  r2,
+  validateBucket,
   validateCloudflareName,
   validateDomain,
   validateEmail,
@@ -10,7 +19,7 @@ import {
   validatePort,
   validateTtl,
   validateUrl,
-  type InitConfig,
+  vercel,
 } from "../src/config.ts";
 
 describe("validators", () => {
@@ -42,6 +51,13 @@ describe("validators", () => {
     expect(validateTtl("60")).toBeUndefined();
     expect(validateTtl("0")).toBeDefined();
     expect(validateTtl("-5")).toBeDefined();
+  });
+
+  test("validateBucket", () => {
+    expect(validateBucket("media")).toBeUndefined();
+    expect(validateBucket("opencms-media")).toBeUndefined();
+    expect(validateBucket("ab")).toBeDefined();
+    expect(validateBucket("Media")).toBeDefined();
   });
 
   test("validateCloudflareName", () => {
@@ -78,48 +94,94 @@ describe("origin helpers", () => {
   });
 
   test("corsOrigins merges the frontend URL with extras", () => {
-    const config: InitConfig = {
+    const config = defineConfig({
       projectName: "p",
       adminEmail: "a@b.co",
       adminName: "A",
-      backend: { kind: "bun-sqlite", publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" },
-      frontend: {
-        host: "vercel",
+      backend: bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" }),
+      frontend: vercel({
         url: "https://site.example.com/landing",
         extraOrigins: ["http://localhost:5173", "https://site.example.com"],
         credentials: true,
-      },
-    };
+      }),
+    });
     expect(corsOrigins(config)).toEqual(["https://site.example.com", "http://localhost:5173"]);
   });
 
   test("corsOrigins is empty for no frontend and for same-origin", () => {
-    const base: InitConfig = {
+    const base = defineConfig({
       projectName: "p",
       adminEmail: "a@b.co",
       adminName: "A",
-      backend: { kind: "bun-sqlite", publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" },
-    };
+      backend: bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" }),
+    });
     expect(corsOrigins(base)).toEqual([]);
-    expect(
-      corsOrigins({ ...base, frontend: { host: "same-origin", extraOrigins: [], credentials: false } }),
-    ).toEqual([]);
+    expect(corsOrigins({ ...base, frontend: sameOrigin() })).toEqual([]);
   });
 });
 
 describe("apiBaseUrl", () => {
   test("self-hosted uses the public URL without a trailing slash", () => {
     expect(
-      apiBaseUrl({ kind: "bun-sqlite", publicUrl: "https://cms.example.com/", port: 443, dbPath: "x.db" }),
+      apiBaseUrl(bunSqlite({ publicUrl: "https://cms.example.com/", port: 443, dbPath: "x.db" })),
     ).toBe("https://cms.example.com");
   });
 
   test("cloudflare prefers the custom domain, else a spelled-out placeholder", () => {
     expect(
-      apiBaseUrl({ kind: "cloudflare", workerName: "opencms-api", d1Name: "opencms", customDomain: "cms.example.com" }),
+      apiBaseUrl(cloudflare({ workerName: "opencms-api", d1Name: "opencms", customDomain: "cms.example.com" })),
     ).toBe("https://cms.example.com");
-    expect(apiBaseUrl({ kind: "cloudflare", workerName: "opencms-api", d1Name: "opencms" })).toBe(
+    expect(apiBaseUrl(cloudflare({ workerName: "opencms-api", d1Name: "opencms" }))).toBe(
       "https://opencms-api.YOUR-SUBDOMAIN.workers.dev",
     );
+  });
+});
+
+describe("integrations", () => {
+  test("factories tag the object; callers never pass the discriminator", () => {
+    expect(bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" }).kind).toBe(
+      "bun-sqlite",
+    );
+    expect(cloudflare({ workerName: "w", d1Name: "d" }).kind).toBe("cloudflare");
+    expect(vercel({ url: "https://a.com" })).toEqual({
+      host: "vercel",
+      url: "https://a.com",
+      extraOrigins: [],
+      credentials: false,
+    });
+    expect(sameOrigin()).toEqual({ host: "same-origin", extraOrigins: [], credentials: false });
+    expect(cloudflareCdn({ ttlSeconds: 60 })).toMatchObject({ kind: "cloudflare-cdn", ttlSeconds: 60 });
+    expect(typeof bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" }).setup).toBe(
+      "function",
+    );
+    expect(typeof bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" }).test).toBe(
+      "function",
+    );
+    expect(typeof s3({ bucket: "media" }).setup).toBe("function");
+    expect(typeof s3({ bucket: "media" }).test).toBe("function");
+    expect(typeof r2({ bucket: "opencms-media" }).test).toBe("function");
+  });
+
+  test("defineConfig is an identity", () => {
+    const config = {
+      projectName: "p",
+      adminEmail: "a@b.co",
+      adminName: "A",
+      backend: bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" }),
+    };
+    expect(defineConfig(config)).toBe(config);
+  });
+
+  test("assertInitConfig rejects junk", () => {
+    expect(() => assertInitConfig(null)).toThrow("defineConfig");
+    expect(() => assertInitConfig({ projectName: "p" })).toThrow("adminEmail");
+    expect(
+      assertInitConfig({
+        projectName: "p",
+        adminEmail: "a@b.co",
+        adminName: "A",
+        backend: bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "x.db" }),
+      }).projectName,
+    ).toBe("p");
   });
 });

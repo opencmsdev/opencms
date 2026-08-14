@@ -149,6 +149,7 @@ published content.
 ## Where to go next
 
 - [Deploy to Cloudflare](./DEPLOY_CLOUDFLARE.md), the edge profile on Workers and D1.
+- [MCP](./MCP.md), agent tools at `http://localhost:3000/mcp` or `https://mcp.opencms.dev/mcp`.
 - [CORS](./CORS.md), for locking down cross-origin access.
 - `DESIGN.md` at the repo root, for the admin UI design system.
 

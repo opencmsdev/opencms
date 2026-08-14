@@ -5,8 +5,9 @@ A modern, open source CMS with the UX WordPress made famous and the architecture
 [![CI](https://github.com/opencmsdev/opencms/actions/workflows/ci.yml/badge.svg)](https://github.com/opencmsdev/opencms/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-**[Quickstart](./docs/QUICKSTART.md)** for a running CMS in five minutes, or
-**[deploy to Cloudflare](./docs/DEPLOY_CLOUDFLARE.md)** for the edge profile.
+**[Quickstart](./docs/QUICKSTART.md)** for a running CMS in five minutes,
+**[deploy to Cloudflare](./docs/DEPLOY_CLOUDFLARE.md)** for the edge profile, or
+**[connect an agent](./docs/MCP.md)** at `https://mcp.opencms.dev/mcp`.
 
 ## Architecture
 
@@ -17,8 +18,9 @@ Everything that touches infrastructure is a connector behind an interface:
 | Data | `DataConnector` | SQLite (done), Cloudflare D1 (done), Postgres |
 | Object storage | `StorageConnector` | S3-compatible (R2, MinIO, AWS) |
 | Auth | better-auth (same SQLite/D1 database) | done |
-| Compute | plain Hono app | Bun server, Cloudflare Workers |
+| Compute | plain Hono app | Bun server, Cloudflare Workers (API + MCP) |
 | Hosting | static admin SPA (done, served by both profiles) | anywhere |
+| Agents | MCP Streamable HTTP | `@opencms/mcp`, official cloud at mcp.opencms.dev |
 
 ### Storage model
 
@@ -43,33 +45,41 @@ better-auth is mounted at `/api/auth/*` on the same Hono app, with its tables in
 - `@opencms/connector-d1`: `DataConnector` on Cloudflare D1. Conformance runs against real workerd via Miniflare. See `docs/DEPLOY_CLOUDFLARE.md`.
 - `@opencms/auth`: better-auth configured for OpenCMS. Email/password sessions, API keys with roles, admin/editor RBAC, first-signup bootstrap, idempotent migrations for bun:sqlite and D1.
 - `@opencms/api`: the REST Admin API as a runtime-agnostic Hono app. Runs on Bun and Cloudflare Workers unchanged.
+- `@opencms/mcp`: the MCP agent surface as a Hono app, built on the official TypeScript SDK. Official cloud lives at `https://mcp.opencms.dev/mcp`; self-host mounts `/mcp` on the API. See `docs/MCP.md`.
 - `@opencms/test-kit`: the conformance suite. A connector is valid if and only if it passes this suite.
 - `@opencms/admin` (apps/admin): the admin SPA. React + Vite + Tailwind v4 + shadcn components restyled per DESIGN.md (dark canvas, pills, hairlines, weight 400). First-run setup, sign-in, content-type builder, entry list and editor with draft/publish, users, API keys. Playwright E2E against the real Bun + SQLite stack.
-- `opencms` (packages/cli): the CLI. `opencms init` is an interactive wizard that turns your stack choices into an agent-ready setup prompt.
+- `opencms` (packages/cli): the CLI. `opencms init` walks stack choices into
+  a clone and `opencms.config.ts`; `opencms setup` asks each integration to
+  provision itself (D1, R2, `.env`, secrets).
 
 ## Set up with an agent
 
 ```bash
 bunx opencms init      # or: npx opencms init
+cd <project> && bunx opencms setup
 ```
 
 The wizard asks what you want: the backend is required (self-hosted Bun +
-SQLite, or Cloudflare Workers + D1), the frontend host and a CDN cache are
-optional. It then collects the data each choice needs (URLs, ports, worker and
-database names, CORS origins, TTL, admin account), clones this repository
-into `./<project>`, records the choices in `opencms.config.ts`, and writes
-the profile config: `.env` with a generated `BETTER_AUTH_SECRET` for the Bun
-profile, or `apps/worker/wrangler.toml` for Cloudflare. It ends by printing a
-complete prompt for a coding agent (Claude Code, Cursor, ...) that finishes
-the setup; the prompt is copied to your clipboard and saved to
-`opencms-agent-prompt.md` in the project folder (`--out <file>` to change,
-`--no-write` to print only, `--no-setup` to skip the clone and only generate
-the prompt).
+SQLite, or Cloudflare Workers + D1), the frontend host, a CDN cache, and
+object storage (S3 or R2) are optional. It then collects the data each
+choice needs (URLs, ports, worker and database names, CORS origins, TTL,
+bucket, admin account), clones this repository into `./<project>`, and
+records the choices in `opencms.config.ts`. Next, `opencms setup` reads
+that file and each integration provisions itself: `.env` and a generated
+`BETTER_AUTH_SECRET` for Bun, D1 + wrangler secrets for Cloudflare, S3
+keys or an R2 bucket when storage is declared. Each integration then tests
+the connection (D1 `SELECT 1`, S3/R2 ListObjects with those keys). Secrets never go in
+`opencms.config.ts`. The wizard also prints a complete prompt for a coding
+agent (Claude Code, Cursor, ...) that finishes CORS / admin bootstrap; the
+prompt is copied to your clipboard and saved to `opencms-agent-prompt.md`
+in the project folder (`--out <file>` to change, `--no-write` to print
+only, `--no-setup` to skip the clone and only generate the prompt).
 
-Secrets never leave your machine: the generated secret lives in the
-untracked `.env`, the prompt never contains one, and the agent is instructed
-to create the admin password at setup time and keep it out of git. Until the
-package is published to npm, run it from a checkout with `bun run cli init`.
+Secrets never leave your machine: generated secrets live in untracked
+`.env` / `.dev.vars`, the prompt never contains one, and the agent is
+instructed to create the admin password at setup time and keep it out of
+git. Until the package is published to npm, run it from a checkout with
+`bun run cli init` / `bun run cli setup`.
 
 ## Develop
 

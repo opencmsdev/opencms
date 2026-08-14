@@ -54,8 +54,11 @@ bunx wrangler deploy
 ```
 
 Wrangler prints your URL, e.g. `https://opencms-api.<account>.workers.dev`.
-The admin UI is served at that URL's root; `/api/*` and `/health` hit the
-Worker directly (`run_worker_first`).
+The admin UI is served at that URL's root; `/api/*`, `/health` and `/mcp`
+hit the Worker directly (`run_worker_first`). MCP is the same Hono app the
+dedicated `apps/mcp` Worker serves at `https://mcp.opencms.dev/mcp`; here it
+is mounted on the API origin so self-host and this Worker both speak MCP
+without a second process. See `docs/MCP.md`.
 
 ## 5. Bootstrap the admin and smoke test
 
@@ -123,4 +126,6 @@ poking.
 
 - One Worker, one D1 database. Multi-tenant setups deploy one Worker per
   site for now.
-- Media (R2) arrives in M5.
+- The official MCP hostname `mcp.opencms.dev` is `apps/mcp`, a second
+  Worker on the same D1. Until that custom domain is bound, `/mcp` on this
+  API Worker is the working endpoint.

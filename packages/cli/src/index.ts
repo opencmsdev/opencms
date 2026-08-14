@@ -3,19 +3,21 @@
  * `opencms` CLI entry point. Runs under plain Node (npx) and under Bun
  * (bunx); nothing below this file may import from `bun:*`.
  *
- *   opencms init            wizard, project setup, agent prompt in clipboard
+ *   opencms init            wizard, project clone, agent prompt in clipboard
  *   opencms init --no-setup wizard and prompt only, no clone
- *   opencms init --out FILE also save the prompt to FILE (overwrites)
- *   opencms init --no-write print only, save nothing
+ *   opencms setup           provision integrations from opencms.config.ts
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "./args.ts";
 import { copyToClipboard } from "./clipboard.ts";
 import { createTerminalIO, palette } from "./io.ts";
+import { loadConfig } from "./load-config.ts";
 import { confirm } from "./prompts.ts";
 import { renderAgentPrompt } from "./render.ts";
 import { projectDirName, scaffold } from "./scaffold.ts";
+import { runSetup } from "./setup.ts";
+import { createRun } from "./wrangler.ts";
 import { runWizard } from "./wizard.ts";
 
 const DEFAULT_OUT = "opencms-agent-prompt.md";
@@ -24,21 +26,28 @@ const HELP = `opencms: the OpenCMS command line
 
 Usage:
   opencms init [--no-setup] [--out <file>] [--no-write]
+  opencms setup [--cwd <dir>] [--yes]
 
 Commands:
-  init            Interactive setup wizard. Asks for backend (required),
-                  frontend host and cache (optional) plus the data each choice
-                  needs, then clones the repo into ./<project>, writes
-                  opencms.config.ts and the profile config (.env or
-                  wrangler.toml), and prints a ready-to-run prompt for a
-                  coding agent, copied to your clipboard.
+  init            Interactive wizard. Picks backend, frontend, cache and
+                  storage, clones the repo into ./<project>, writes
+                  opencms.config.ts, and prints an agent-ready prompt.
+
+  setup           Read opencms.config.ts in the current directory and
+                  create whatever those integrations need: D1 / R2 on
+                  Cloudflare, S3 keys in .env, auth secrets. Then each
+                  integration tests its connection (D1 SELECT 1, R2
+                  ListObjects). Safe to re-run.
 
 Options for init:
-  --no-setup      Skip the clone and configuration; generate the prompt only.
+  --no-setup      Skip the clone; generate the prompt only.
   --out <file>    Save the prompt to <file> (default: ${DEFAULT_OUT}
-                  inside the project folder, asked before overwriting unless
-                  --out is explicit).
+                  inside the project folder).
   --no-write      Print the prompt to stdout only.
+
+Options for setup:
+  --cwd <dir>     Project directory (default: current directory).
+  -y, --yes       Skip the confirmation prompt.
 
 Global options:
   -h, --help      Show this help.
@@ -112,7 +121,7 @@ async function init(out: string | undefined, write: boolean, setup: boolean): Pr
 
     io.write(
       scaffolded
-        ? `\nNext: ${c.bold(`cd ${projectDir}`)} and paste the prompt into your coding agent\n(Claude Code, Cursor, ...); it will finish the setup from there.\n`
+        ? `\nNext: ${c.bold(`cd ${projectDir} && bunx opencms setup`)}\nthen paste the prompt into your coding agent if you want CORS / admin bootstrap done for you.\n`
         : "\nPaste the prompt into your coding agent (Claude Code, Cursor, ...)\nand it will set everything up.\n",
     );
     return 0;
@@ -122,6 +131,34 @@ async function init(out: string | undefined, write: boolean, setup: boolean): Pr
       return 130;
     }
     throw err;
+  } finally {
+    io.close();
+  }
+}
+
+async function setup(cwd: string, yes: boolean): Promise<number> {
+  if (!process.stdin.isTTY && !yes) {
+    process.stderr.write("opencms setup is interactive; run it in a terminal or pass --yes.\n");
+    return 1;
+  }
+  const io = createTerminalIO();
+  const c = palette(io.colorEnabled);
+  try {
+    const config = await loadConfig(cwd);
+    const result = await runSetup(config, { cwd, io, run: createRun(), yes });
+    if (!result.ok) {
+      io.write(`${c.red("✖")} ${result.error}\n`);
+      return 1;
+    }
+    return 0;
+  } catch (err) {
+    if (isStdinAbort(err)) {
+      process.stdout.write("\nAborted. Nothing was written.\n");
+      return 130;
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`${message}\n`);
+    return 1;
   } finally {
     io.close();
   }
@@ -142,6 +179,7 @@ async function main(): Promise<number> {
     return 0;
   }
   if (parsed.command === "init") return init(parsed.out, parsed.write, parsed.setup);
+  if (parsed.command === "setup") return setup(resolve(parsed.cwd ?? process.cwd()), parsed.yes);
   process.stderr.write(`Unknown command: ${parsed.command}\n\n${HELP}`);
   return 1;
 }

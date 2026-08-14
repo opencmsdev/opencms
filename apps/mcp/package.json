@@ -1,24 +1,22 @@
 {
-  "name": "@opencms/worker",
+  "name": "@opencms/mcp-worker",
   "private": true,
   "version": "0.2.0",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/opencmsdev/opencms.git",
-    "directory": "apps/worker"
+    "directory": "apps/mcp"
   },
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@opencms/api": "workspace:*",
     "@opencms/auth": "workspace:*",
     "@opencms/connector-d1": "workspace:*",
-    "@opencms/connector-kv": "workspace:*",
-    "@opencms/connector-s3": "workspace:*",
     "@opencms/mcp": "workspace:*",
     "hono": "^4.6.0"
   },

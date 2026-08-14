@@ -16,12 +16,13 @@ describe("runWizard", () => {
       "http://localhost:5173", // extra origins
       "", // cookies -> no
       "", // cache -> none
+      "", // storage -> none
       "me@example.com", // admin email
       "", // admin name -> Admin
       "", // confirm -> yes
     ]);
     const config = await runWizard(io);
-    expect(config).toEqual({
+    expect(config).toMatchObject({
       projectName: "my-site",
       adminEmail: "me@example.com",
       adminName: "Admin",
@@ -33,6 +34,7 @@ describe("runWizard", () => {
         credentials: false,
       },
       cache: undefined,
+      storage: undefined,
     });
     expect(io.output).toContain("Summary");
   });
@@ -47,18 +49,20 @@ describe("runWizard", () => {
       "", // frontend -> none
       "2", // cache: cloudflare-cdn
       "", // ttl -> 60
+      "", // storage -> none
       "me@example.com", // admin email
       "Mehdi", // admin name
       "y", // confirm
     ]);
     const config = await runWizard(io);
-    expect(config).toEqual({
+    expect(config).toMatchObject({
       projectName: "edge-site",
       adminEmail: "me@example.com",
       adminName: "Mehdi",
       backend: { kind: "cloudflare", workerName: "opencms-api", d1Name: "opencms", customDomain: "cms.example.com" },
       frontend: undefined,
       cache: { kind: "cloudflare-cdn", ttlSeconds: 60 },
+      storage: undefined,
     });
   });
 
@@ -74,13 +78,14 @@ describe("runWizard", () => {
       "", // db file
       "", // frontend -> none
       "", // cache -> none
+      "", // storage -> none
       "nope", // admin email: invalid, reprompts
       "me@example.com", // admin email
       "", // admin name
       "", // confirm -> yes
     ]);
     const config = await runWizard(io);
-    expect(config?.backend).toEqual({
+    expect(config?.backend).toMatchObject({
       kind: "bun-sqlite",
       publicUrl: "http://localhost:4000",
       port: 4000,
@@ -100,6 +105,7 @@ describe("runWizard", () => {
       "",
       "", // frontend -> none
       "", // cache -> none
+      "", // storage -> none
       "me@example.com",
       "",
       "n", // confirm -> no
@@ -116,6 +122,7 @@ describe("runWizard", () => {
       "",
       "5", // frontend: same-origin
       "", // cache -> none
+      "", // storage -> none
       "me@example.com",
       "",
       "",

@@ -1,6 +1,7 @@
 name = "opencms-api"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
 
 # Auth requires a signing secret (never commit one):
 #   wrangler secret put BETTER_AUTH_SECRET
@@ -14,7 +15,7 @@ compatibility_date = "2026-07-01"
 directory = "../admin/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/health"]
+run_worker_first = ["/api/*", "/health", "/mcp", "/mcp/*"]
 
 # Optional: cache anonymous published reads in Workers KV.
 # Create with `wrangler kv namespace create CACHE`, then uncomment:

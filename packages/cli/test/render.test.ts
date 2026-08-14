@@ -1,26 +1,31 @@
 import { describe, expect, test } from "bun:test";
-import type { InitConfig } from "../src/config.ts";
+import {
+  bunSqlite,
+  cloudflare,
+  cloudflareCdn,
+  type InitConfig,
+} from "../src/config.ts";
 import { renderAgentPrompt, summaryRows } from "../src/render.ts";
 
 const selfHosted: InitConfig = {
   projectName: "blog",
   adminEmail: "me@example.com",
   adminName: "Mehdi",
-  backend: { kind: "bun-sqlite", publicUrl: "http://localhost:3000", port: 3000, dbPath: "opencms.db" },
+  backend: bunSqlite({ publicUrl: "http://localhost:3000", port: 3000, dbPath: "opencms.db" }),
 };
 
 const edge: InitConfig = {
   projectName: "edge-site",
   adminEmail: "me@example.com",
   adminName: "Mehdi",
-  backend: { kind: "cloudflare", workerName: "opencms-api", d1Name: "opencms", customDomain: "cms.example.com" },
+  backend: cloudflare({ workerName: "opencms-api", d1Name: "opencms", customDomain: "cms.example.com" }),
   frontend: {
     host: "vercel",
     url: "https://site.example.com",
     extraOrigins: ["http://localhost:5173"],
     credentials: true,
   },
-  cache: { kind: "cloudflare-cdn", ttlSeconds: 120 },
+  cache: cloudflareCdn({ ttlSeconds: 120 }),
 };
 
 describe("renderAgentPrompt, self-hosted profile", () => {
@@ -63,10 +68,9 @@ describe("renderAgentPrompt, cloudflare profile with frontend and cache", () => 
   const prompt = renderAgentPrompt(edge);
 
   test("uses the Workers profile commands", () => {
-    expect(prompt).toContain("bunx wrangler d1 create opencms");
-    expect(prompt).toContain('name = "opencms-api"');
+    expect(prompt).toContain("bunx opencms setup");
     expect(prompt).toContain("bunx wrangler deploy");
-    expect(prompt).toContain('BETTER_AUTH_URL = "https://cms.example.com"');
+    expect(prompt).toContain("cms.example.com");
   });
 
   test("configures CORS for the frontend origins with credentials", () => {
@@ -92,7 +96,7 @@ describe("renderAgentPrompt, edge cases", () => {
   test("workers.dev placeholder is spelled out when no custom domain", () => {
     const prompt = renderAgentPrompt({
       ...edge,
-      backend: { kind: "cloudflare", workerName: "opencms-api", d1Name: "opencms" },
+      backend: cloudflare({ workerName: "opencms-api", d1Name: "opencms" }),
     });
     expect(prompt).toContain("https://opencms-api.YOUR-SUBDOMAIN.workers.dev");
     expect(prompt).toContain("substitute that real URL");
@@ -101,7 +105,7 @@ describe("renderAgentPrompt, edge cases", () => {
   test("non-localhost self-hosted URL adds the reverse proxy step", () => {
     const prompt = renderAgentPrompt({
       ...selfHosted,
-      backend: { kind: "bun-sqlite", publicUrl: "https://cms.example.com", port: 3000, dbPath: "opencms.db" },
+      backend: bunSqlite({ publicUrl: "https://cms.example.com", port: 3000, dbPath: "opencms.db" }),
     });
     expect(prompt).toContain("reverse");
     expect(prompt).toContain('export BETTER_AUTH_URL="https://cms.example.com"');
@@ -143,12 +147,11 @@ describe("renderAgentPrompt, scaffolded variant", () => {
     expect(prompt).toContain("openssl rand -base64 24");
   });
 
-  test("cloudflare keeps only the database_id paste as manual toml work", () => {
+  test("cloudflare runs opencms setup instead of hand-editing wrangler.toml", () => {
     const prompt = renderAgentPrompt(edge, { scaffolded: true });
-    expect(prompt).toContain("already carries the worker name");
-    expect(prompt).not.toContain('- Set `name = "opencms-api"` at the top.');
-    expect(prompt).toContain("paste the `database_id`");
-    expect(prompt).toContain("already sets the canonical URL in `[vars]`");
+    expect(prompt).toContain("bunx opencms setup");
+    expect(prompt).not.toContain("paste the `database_id`");
+    expect(prompt).toContain("cd edge-site");
   });
 
   test("scaffolded output still has no em or en dashes", () => {
@@ -165,6 +168,7 @@ describe("summaryRows", () => {
     const rows = summaryRows(selfHosted);
     expect(rows.find((r) => r.label === "Frontend host")?.value).toBe("None (API only)");
     expect(rows.find((r) => r.label === "Cache")?.value).toBe("None");
+    expect(rows.find((r) => r.label === "Storage")?.value).toBe("None");
     expect(rows.find((r) => r.label === "Admin account")?.value).toBe("Mehdi <me@example.com>");
   });
 

@@ -15,6 +15,7 @@
     "@opencms/connector-postgres": "workspace:*",
     "@opencms/connector-s3": "workspace:*",
     "@opencms/connector-sqlite": "workspace:*",
-    "@opencms/core": "workspace:*"
+    "@opencms/core": "workspace:*",
+    "@opencms/mcp": "workspace:*"
   }
 }

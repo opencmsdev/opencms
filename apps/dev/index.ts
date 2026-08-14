@@ -15,6 +15,7 @@
  */
 import { Database } from "bun:sqlite";
 import { createApp } from "@opencms/api";
+import { createMcpApp, isMcpPath } from "@opencms/mcp";
 import { createAuth, runAuthMigrations, toAuthConnector } from "@opencms/auth";
 import { PostgresDataConnector } from "@opencms/connector-postgres";
 import { SQLiteDataConnector } from "@opencms/connector-sqlite";
@@ -90,13 +91,15 @@ const cache =
       }
     : undefined;
 
-const app = createApp({ data, auth: toAuthConnector(auth), storage: storageFromEnv(), cache });
+const authConnector = toAuthConnector(auth);
+const app = createApp({ data, auth: authConnector, storage: storageFromEnv(), cache });
+const mcp = createMcpApp({ data, auth: authConnector });
 
 /** Serve the built admin SPA for non-API GETs; null when not applicable. */
 async function serveAdmin(req: Request): Promise<Response | null> {
   if (req.method !== "GET" && req.method !== "HEAD") return null;
   const { pathname } = new URL(req.url);
-  if (pathname.startsWith("/api/") || pathname === "/api" || pathname === "/health") return null;
+  if (pathname.startsWith("/api/") || pathname === "/api" || pathname === "/health" || isMcpPath(pathname)) return null;
   if (pathname.includes("..")) return null;
 
   const candidate = pathname === "/" ? "index.html" : pathname.slice(1);
@@ -108,6 +111,9 @@ async function serveAdmin(req: Request): Promise<Response | null> {
 
 const server = Bun.serve({
   port: PORT,
-  fetch: async (req) => (await serveAdmin(req)) ?? app.fetch(req),
+  fetch: async (req) => {
+    if (isMcpPath(new URL(req.url).pathname)) return mcp.fetch(req);
+    return (await serveAdmin(req)) ?? app.fetch(req);
+  },
 });
 console.log(`OpenCMS dev API on http://localhost:${server.port}`);

@@ -25,12 +25,13 @@ the two can never be confused:
 name = "opencms-demo"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
 
 [assets]
 directory = "../admin/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/health"]
+run_worker_first = ["/api/*", "/health", "/mcp", "/mcp/*"]
 
 [[d1_databases]]
 binding = "DB"
@@ -94,7 +95,7 @@ Actions tab once before trusting the schedule.
 
 ## What the demo does not cover
 
-Media uploads (M5) and the MCP surface (M6) are not built yet, so the media
-field renders as a plain storage-key input and there is nothing agent-facing
-to show. Say so on the demo page rather than letting a visitor find out by
-clicking.
+Media uploads work when `OPENCMS_S3_*` is set on the Worker; without a
+bucket the library is hidden. MCP is on the same origin at `/mcp` once
+this revision is deployed (API key required for writes). The official
+hosted endpoint is `https://mcp.opencms.dev/mcp`.

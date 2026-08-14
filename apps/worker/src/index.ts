@@ -5,6 +5,7 @@
  * Requires a secret: `wrangler secret put BETTER_AUTH_SECRET`.
  */
 import { createApp } from "@opencms/api";
+import { createMcpApp, isMcpPath } from "@opencms/mcp";
 import {
   createAuth,
   runAuthMigrations,
@@ -57,11 +58,12 @@ function storageFromEnv(env: Env): StorageConnector | undefined {
 }
 
 let app: ReturnType<typeof createApp> | null = null;
+let mcp: ReturnType<typeof createMcpApp> | null = null;
 let ready: Promise<unknown> | null = null;
 
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
-    if (!app) {
+    if (!app || !mcp) {
       const data = new D1DataConnector(env.DB);
       const auth = createAuth({
         // Same binding, wider structural type on our side.
@@ -72,9 +74,10 @@ export default {
       // Both inits are idempotent DDL; run once per isolate.
       ready ??= Promise.all([data.init(), runAuthMigrations(auth)]);
       await ready;
+      const connector = toAuthConnector(auth);
       app = createApp({
         data,
-        auth: toAuthConnector(auth),
+        auth: connector,
         storage: storageFromEnv(env),
         cache: env.CACHE
           ? {
@@ -83,8 +86,12 @@ export default {
             }
           : undefined,
       });
+      mcp = createMcpApp({ data, auth: connector });
     }
     // Hono types ctx as its own ExecutionContext; the runtime object matches.
+    if (isMcpPath(new URL(request.url).pathname)) {
+      return mcp.fetch(request, env, ctx as never);
+    }
     return app.fetch(request, env, ctx as never);
   },
 };

@@ -5,16 +5,20 @@
 import type { IO } from "./io.ts";
 import { palette } from "./io.ts";
 import { confirm, select, text } from "./prompts.ts";
-import type {
-  BackendConfig,
-  CacheConfig,
-  CacheKind,
-  FrontendConfig,
-  FrontendHost,
-  InitConfig,
-} from "./config.ts";
 import {
+  bunSqlite,
+  cloudflare,
+  cloudflareCdn,
+  cloudflarePages,
+  defineConfig,
+  netlify,
+  otherCdn,
+  otherFrontend,
   parseOriginList,
+  r2,
+  s3,
+  sameOrigin,
+  validateBucket,
   validateCloudflareName,
   validateDomain,
   validateEmail,
@@ -22,6 +26,15 @@ import {
   validatePort,
   validateTtl,
   validateUrl,
+  vercel,
+  type BackendConfig,
+  type CacheConfig,
+  type CacheKind,
+  type FrontendConfig,
+  type FrontendHost,
+  type InitConfig,
+  type StorageConfig,
+  type StorageKind,
 } from "./config.ts";
 import { summaryRows } from "./render.ts";
 
@@ -51,7 +64,11 @@ async function askBackend(io: IO): Promise<BackendConfig> {
       defaultValue: "opencms.db",
       required: true,
     });
-    return { kind, publicUrl: publicUrl.replace(/\/+$/, ""), port: Number(port), dbPath };
+    return bunSqlite({
+      publicUrl: publicUrl.replace(/\/+$/, ""),
+      port: Number(port),
+      dbPath,
+    });
   }
 
   const workerName = await text(io, "Worker name", {
@@ -67,9 +84,11 @@ async function askBackend(io: IO): Promise<BackendConfig> {
   const customDomain = await text(io, "Custom domain, e.g. cms.example.com", {
     validate: validateDomain,
   });
-  return customDomain === ""
-    ? { kind, workerName, d1Name }
-    : { kind, workerName, d1Name, customDomain: customDomain.toLowerCase() };
+  return cloudflare({
+    workerName,
+    d1Name,
+    ...(customDomain === "" ? {} : { customDomain: customDomain.toLowerCase() }),
+  });
 }
 
 async function askFrontend(io: IO): Promise<FrontendConfig | undefined> {
@@ -87,7 +106,7 @@ async function askFrontend(io: IO): Promise<FrontendConfig | undefined> {
     { defaultValue: "none" },
   );
   if (host === "none") return undefined;
-  if (host === "same-origin") return { host, extraOrigins: [], credentials: false };
+  if (host === "same-origin") return sameOrigin();
 
   const url = await text(io, "Frontend production URL", {
     required: true,
@@ -103,7 +122,17 @@ async function askFrontend(io: IO): Promise<FrontendConfig | undefined> {
     "Will the frontend sign users in with cookies (cross-origin credentials)?",
     false,
   );
-  return { host, url, extraOrigins: parseOriginList(extra), credentials };
+  const options = { url, extraOrigins: parseOriginList(extra), credentials };
+  switch (host) {
+    case "vercel":
+      return vercel(options);
+    case "netlify":
+      return netlify(options);
+    case "cloudflare-pages":
+      return cloudflarePages(options);
+    case "other":
+      return otherFrontend(options);
+  }
 }
 
 async function askCache(io: IO): Promise<CacheConfig | undefined> {
@@ -123,7 +152,44 @@ async function askCache(io: IO): Promise<CacheConfig | undefined> {
     required: true,
     validate: validateTtl,
   });
-  return { kind, ttlSeconds: Number(ttl) };
+  const options = { ttlSeconds: Number(ttl) };
+  return kind === "cloudflare-cdn" ? cloudflareCdn(options) : otherCdn(options);
+}
+
+async function askStorage(io: IO): Promise<StorageConfig | undefined> {
+  const kind = await select<StorageKind | "none">(
+    io,
+    "Storage (optional): where do uploaded files live?",
+    [
+      { value: "none", label: "None", hint: "in-memory locally, or skip the media library" },
+      { value: "s3", label: "S3-compatible", hint: "AWS, MinIO, Tigris, ..." },
+      { value: "r2", label: "Cloudflare R2", hint: "opencms setup will create the bucket" },
+    ],
+    { defaultValue: "none" },
+  );
+  if (kind === "none") return undefined;
+  const bucket = await text(io, "Bucket name", {
+    defaultValue: kind === "r2" ? "opencms-media" : undefined,
+    required: true,
+    validate: validateBucket,
+  });
+  const publicBaseUrl = await text(io, "Public base URL for files, e.g. https://media.example.com", {
+    validate: validateUrl,
+  });
+  if (kind === "r2") {
+    return r2({
+      bucket,
+      ...(publicBaseUrl === "" ? {} : { publicBaseUrl }),
+    });
+  }
+  const endpoint = await text(io, "S3 endpoint URL (skip for AWS)", { validate: validateUrl });
+  const region = await text(io, "S3 region", { defaultValue: "auto" });
+  return s3({
+    bucket,
+    ...(endpoint === "" ? {} : { endpoint }),
+    ...(region === "" ? {} : { region }),
+    ...(publicBaseUrl === "" ? {} : { publicBaseUrl }),
+  });
 }
 
 /** Runs the full wizard. Returns null when the user declines the summary. */
@@ -132,7 +198,7 @@ export async function runWizard(io: IO): Promise<InitConfig | null> {
   io.write(`\n${c.bold("OpenCMS init")}\n`);
   io.write(
     c.dim(
-      "A few questions, then this prints a ready-to-run prompt for your coding\nagent. Nothing is installed or deployed by the wizard itself.\n",
+      "A few questions, then this writes opencms.config.ts. Run `opencms setup`\nin the project folder to create the resources those integrations need.\n",
     ),
   );
 
@@ -140,6 +206,7 @@ export async function runWizard(io: IO): Promise<InitConfig | null> {
   const backend = await askBackend(io);
   const frontend = await askFrontend(io);
   const cache = await askCache(io);
+  const storage = await askStorage(io);
   const adminEmail = await text(io, "Admin email (the first signup becomes the admin)", {
     required: true,
     validate: validateEmail,
@@ -149,7 +216,7 @@ export async function runWizard(io: IO): Promise<InitConfig | null> {
     required: true,
   });
 
-  const config: InitConfig = { projectName, adminEmail, adminName, backend, frontend, cache };
+  const config = defineConfig({ projectName, adminEmail, adminName, backend, frontend, cache, storage });
 
   io.write(`\n${c.bold("Summary")}\n`);
   for (const row of summaryRows(config)) {

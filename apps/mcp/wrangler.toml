@@ -1,0 +1,25 @@
+name = "opencms-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Official cloud endpoint: https://mcp.opencms.dev/mcp
+# Requires the opencms.dev zone on this Cloudflare account.
+[[routes]]
+pattern = "mcp.opencms.dev"
+custom_domain = true
+
+# Auth signing secret — MUST match the API Worker if they share D1:
+#   wrangler secret put BETTER_AUTH_SECRET
+# Optionally point session checks at the API origin:
+# [vars]
+# BETTER_AUTH_URL = "https://api.opencms.dev"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "opencms"
+# Same database as apps/worker. Fill in after `wrangler d1 create opencms`.
+database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
