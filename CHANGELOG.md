@@ -27,8 +27,9 @@ report. Run it after changing the version and commit the result.
   provision itself: Bun writes `.env`, Cloudflare creates D1 and stores
   secrets, S3/R2 ask for keys. Each integration then `test()`s the
   connection (D1 `SELECT 1`, S3/R2 ListObjects with the stored keys).
-  Safe to re-run. Run `bunx opencms setup` after `opencms init` (needs
-  Bun so the TypeScript config can be imported).
+  Safe to re-run. Run `bunx @opencms/cli setup` after `opencms init` (needs
+  Bun so the TypeScript config can be imported). The npm package is
+  `@opencms/cli` because unscoped `opencms` is too similar to `open-cms`.
 
 ### Changed
 

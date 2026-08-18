@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { BUNX_SETUP } from "./commands.ts";
 import { assertInitConfig, type InitConfig } from "./config.ts";
 
 /**
@@ -20,7 +21,7 @@ export async function loadConfig(cwd: string): Promise<InitConfig> {
     if (err instanceof Error && err.message.startsWith("opencms.config.ts")) throw err;
     const reason = err instanceof Error ? err.message : String(err);
     throw new Error(
-      `Could not load opencms.config.ts (${reason}). Run \`bunx opencms setup\` so Bun can import the TypeScript config.`,
+      `Could not load opencms.config.ts (${reason}). Run \`${BUNX_SETUP}\` so Bun can import the TypeScript config.`,
     );
   }
 }

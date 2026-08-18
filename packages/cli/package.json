@@ -1,5 +1,5 @@
 {
-  "name": "opencms",
+  "name": "@opencms/cli",
   "version": "0.3.0",
   "description": "OpenCMS CLI. `opencms init` walks you through choosing a stack; `opencms setup` provisions each integration from opencms.config.ts.",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "type": "module",
   "bin": {
-    "opencms": "./dist/index.js"
+    "opencms": "dist/index.js"
   },
   "files": [
     "dist"
@@ -18,8 +18,11 @@
   "engines": {
     "node": ">=18.17"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node",
+    "build": "bun build src/index.ts --outdir dist --target node --banner '#!/usr/bin/env node'",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {

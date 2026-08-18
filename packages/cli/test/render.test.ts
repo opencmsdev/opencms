@@ -68,7 +68,7 @@ describe("renderAgentPrompt, cloudflare profile with frontend and cache", () => 
   const prompt = renderAgentPrompt(edge);
 
   test("uses the Workers profile commands", () => {
-    expect(prompt).toContain("bunx opencms setup");
+    expect(prompt).toContain("bunx @opencms/cli setup");
     expect(prompt).toContain("bunx wrangler deploy");
     expect(prompt).toContain("cms.example.com");
   });
@@ -149,7 +149,7 @@ describe("renderAgentPrompt, scaffolded variant", () => {
 
   test("cloudflare runs opencms setup instead of hand-editing wrangler.toml", () => {
     const prompt = renderAgentPrompt(edge, { scaffolded: true });
-    expect(prompt).toContain("bunx opencms setup");
+    expect(prompt).toContain("bunx @opencms/cli setup");
     expect(prompt).not.toContain("paste the `database_id`");
     expect(prompt).toContain("cd edge-site");
   });

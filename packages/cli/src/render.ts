@@ -11,6 +11,7 @@
  *
  * The wizard collects no secrets, and no secret ever appears in the prompt.
  */
+import { BUNX_SETUP } from "./commands.ts";
 import type { InitConfig } from "./config.ts";
 import { apiBaseUrl, corsOrigins } from "./config.ts";
 import { projectDirName } from "./scaffold.ts";
@@ -143,7 +144,7 @@ export function renderAgentPrompt(
       "```bash",
       `cd ${dir}`,
       "bun install",
-      "bunx opencms setup",
+      BUNX_SETUP,
       "```",
       "",
       "`opencms setup` creates D1 / R2, writes secrets, and asks for S3 keys when",
@@ -163,7 +164,7 @@ export function renderAgentPrompt(
       "bun install",
       "```",
       "",
-      "If `opencms.config.ts` is present, run `bunx opencms setup` next so D1,",
+      `If \`opencms.config.ts\` is present, run \`${BUNX_SETUP}\` next so D1,`,
       "secrets and S3/R2 are created from that file instead of by hand.",
       "",
     );
@@ -235,7 +236,7 @@ export function renderAgentPrompt(
       "From the project root:",
       "",
       "```bash",
-      "bunx opencms setup",
+      BUNX_SETUP,
       "```",
       "",
       "This logs into Cloudflare if needed, creates the D1 database",

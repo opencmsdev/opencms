@@ -1,6 +1,6 @@
 /**
  * Wrangler subprocess + parsers. The CLI never imports `bun:*`; it shells
- * out to `bunx wrangler` (then `npx wrangler`) so `npx opencms setup` still
+ * out to `bunx wrangler` (then `npx wrangler`) so `npx @opencms/cli setup` still
  * works on a machine that has Node and wrangler.
  */
 import { spawnSync } from "node:child_process";
@@ -109,7 +109,7 @@ function tryJson(output: string): unknown {
   }
 }
 
-/** Prefer bunx, then npx, so both bunx opencms and npx opencms work. */
+/** Prefer bunx, then npx, so both bunx @opencms/cli and npx @opencms/cli work. */
 export function wranglerInvocation(
   run: Run,
   args: string[],

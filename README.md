@@ -48,15 +48,15 @@ better-auth is mounted at `/api/auth/*` on the same Hono app, with its tables in
 - `@opencms/mcp`: the MCP agent surface as a Hono app, built on the official TypeScript SDK. Official cloud lives at `https://mcp.opencms.dev/mcp`; self-host mounts `/mcp` on the API. See `docs/MCP.md`.
 - `@opencms/test-kit`: the conformance suite. A connector is valid if and only if it passes this suite.
 - `@opencms/admin` (apps/admin): the admin SPA. React + Vite + Tailwind v4 + shadcn components restyled per DESIGN.md (dark canvas, pills, hairlines, weight 400). First-run setup, sign-in, content-type builder, entry list and editor with draft/publish, users, API keys. Playwright E2E against the real Bun + SQLite stack.
-- `opencms` (packages/cli): the CLI. `opencms init` walks stack choices into
+- `@opencms/cli` (packages/cli): the CLI. `opencms init` walks stack choices into
   a clone and `opencms.config.ts`; `opencms setup` asks each integration to
   provision itself (D1, R2, `.env`, secrets).
 
 ## Set up with an agent
 
 ```bash
-bunx opencms init      # or: npx opencms init
-cd <project> && bunx opencms setup
+bunx @opencms/cli init      # or: npx @opencms/cli init
+cd <project> && bunx @opencms/cli setup
 ```
 
 The wizard asks what you want: the backend is required (self-hosted Bun +
@@ -78,8 +78,8 @@ only, `--no-setup` to skip the clone and only generate the prompt).
 Secrets never leave your machine: generated secrets live in untracked
 `.env` / `.dev.vars`, the prompt never contains one, and the agent is
 instructed to create the admin password at setup time and keep it out of
-git. Until the package is published to npm, run it from a checkout with
-`bun run cli init` / `bun run cli setup`.
+git. Until `@opencms/cli` is on npm, run it from a checkout with
+`bun run packages/cli/src/index.ts init` / `... setup`.
 
 ## Develop
 

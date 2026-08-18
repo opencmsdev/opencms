@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * `opencms` CLI entry point. Runs under plain Node (npx) and under Bun
  * (bunx); nothing below this file may import from `bun:*`.
@@ -10,6 +9,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "./args.ts";
+import { BUNX_SETUP } from "./commands.ts";
 import { copyToClipboard } from "./clipboard.ts";
 import { createTerminalIO, palette } from "./io.ts";
 import { loadConfig } from "./load-config.ts";
@@ -121,7 +121,7 @@ async function init(out: string | undefined, write: boolean, setup: boolean): Pr
 
     io.write(
       scaffolded
-        ? `\nNext: ${c.bold(`cd ${projectDir} && bunx opencms setup`)}\nthen paste the prompt into your coding agent if you want CORS / admin bootstrap done for you.\n`
+        ? `\nNext: ${c.bold(`cd ${projectDir} && ${BUNX_SETUP}`)}\nthen paste the prompt into your coding agent if you want CORS / admin bootstrap done for you.\n`
         : "\nPaste the prompt into your coding agent (Claude Code, Cursor, ...)\nand it will set everything up.\n",
     );
     return 0;
