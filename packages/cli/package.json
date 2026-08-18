@@ -1,6 +1,6 @@
 {
   "name": "opencms",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OpenCMS CLI. `opencms init` walks you through choosing a stack; `opencms setup` provisions each integration from opencms.config.ts.",
   "license": "MIT",
   "repository": {

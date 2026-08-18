@@ -13,6 +13,8 @@ report. Run it after changing the version and commit the result.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-18
+
 ### Added
 
 - MCP agent surface (`@opencms/mcp`). Streamable HTTP via the official
@@ -139,6 +141,7 @@ rather than a full account.
 - Admin UI in React: first-run setup, content type builder, entry editor with
   draft and publish, user management and API keys.
 
-[Unreleased]: https://github.com/opencmsdev/opencms/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/opencmsdev/opencms/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/opencmsdev/opencms/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/opencmsdev/opencms/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/opencmsdev/opencms/releases/tag/v0.1.0
