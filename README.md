@@ -78,7 +78,9 @@ only, `--no-setup` to skip the clone and only generate the prompt).
 Secrets never leave your machine: generated secrets live in untracked
 `.env` / `.dev.vars`, the prompt never contains one, and the agent is
 instructed to create the admin password at setup time and keep it out of
-git. Until `@opencms/cli` is on npm, run it from a checkout with
+git. The published package is `@opencms/cli` (`bunx @opencms/cli init` or
+`npx @opencms/cli init`). Unscoped `opencms` is blocked on npm (too similar
+to `open-cms`). To run the CLI from a checkout:
 `bun run packages/cli/src/index.ts init` / `... setup`.
 
 ## Develop

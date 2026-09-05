@@ -17,6 +17,17 @@ differs.
 ## 1. Install
 
 ```bash
+bunx @opencms/cli init
+cd <project>
+bunx @opencms/cli setup
+```
+
+That clones this repo, writes `opencms.config.ts`, and provisions the stack
+you picked. Node users can swap `bunx` for `npx`.
+
+To hack on OpenCMS itself, clone instead:
+
+```bash
 git clone https://github.com/opencmsdev/opencms.git
 cd opencms
 bun install
@@ -165,3 +176,7 @@ in API-only mode, which is a valid way to use OpenCMS but has no UI.
 **A `curl` call to `/api/auth/*` is rejected.** better-auth enforces CSRF on
 its own routes, so cookie-authenticated calls need an `Origin` header
 matching the server. API keys on `/api/content/*` are unaffected.
+
+**Cloudflare admin stuck on "Minting…" for an API key.** Set
+`BETTER_AUTH_URL` on the Worker to the exact public URL and redeploy. See
+[Deploy to Cloudflare](./DEPLOY_CLOUDFLARE.md).
