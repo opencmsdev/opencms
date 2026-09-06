@@ -5,14 +5,67 @@ Same Hono app as the REST API, same RBAC, same connectors. Official SDK is
 [`@modelcontextprotocol/typescript-sdk`](https://github.com/modelcontextprotocol/typescript-sdk)
 (`@modelcontextprotocol/server` + `@modelcontextprotocol/hono`).
 
-Official hosted endpoint:
+Every instance already serves MCP at `/mcp` on the API origin. There is no
+second process to install and you do not point clients at the hosted
+`mcp.opencms.dev` endpoint. That hostname is OpenCMS's own cloud. Yours is:
 
 ```
-https://mcp.opencms.dev/mcp
+http://localhost:3000/mcp
 ```
 
-Self-host and the Cloudflare API Worker expose the same path on the API
-origin: `http://localhost:3000/mcp`, or `https://<your-api>/mcp`.
+or, once deployed, `https://<your-api>/mcp`.
+
+## Add it to a client
+
+1. Run your OpenCMS instance ([quickstart](./QUICKSTART.md) locally, or your
+   deployed API).
+2. Sign in as an admin, open **API keys**, mint a key. Copy it now; the
+   secret is shown once.
+3. Point the MCP client at **your** `/mcp` URL and send that key on every
+   request.
+
+Editor keys can manage content. Admin keys can also manage content types.
+
+### Cursor
+
+Cursor Settings → Tools & MCP → New MCP Server, or write the same JSON to
+`.cursor/mcp.json` (this project) or `~/.cursor/mcp.json` (every project):
+
+```json
+{
+  "mcpServers": {
+    "opencms": {
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer ocms_YOUR_KEY"
+      }
+    }
+  }
+}
+```
+
+For a deployed instance, swap the URL for `https://<your-api>/mcp`. If the
+file is committed, interpolate the secret instead of pasting it:
+
+```json
+"Authorization": "Bearer ${env:OPENCMS_API_KEY}"
+```
+
+Restart Cursor (or reload MCP servers from that settings page) after saving.
+The `opencms` server should go green and expose the tools below.
+
+### Claude Desktop
+
+Same `mcpServers` object, in Claude's config file:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+Then restart Claude Desktop.
+
+### Claude Code
+
+Project-root `.mcp.json`, same shape as Cursor's `mcpServers` block.
 
 ## Auth
 
@@ -24,9 +77,7 @@ origin-bound; Claude/Cursor/etc. are not browsers on your API host).
 | `x-api-key: ocms_…` | Same keys the REST API already uses |
 | `Authorization: Bearer ocms_…` | For clients that only send Bearer |
 
-Mint a key as an admin (`POST /api/auth/api-key/create` with
-`metadata.role` of `admin` or `editor`). A bad key is HTTP 401, never a
-silent downgrade to anonymous.
+A bad key is HTTP 401, never a silent downgrade to anonymous.
 
 Access model matches REST:
 
@@ -52,46 +103,11 @@ Access model matches REST:
 | `publish_entry` | editor | Set published |
 | `unpublish_entry` | editor | Set draft |
 
-## Client config
+## Already on the API
 
-Cursor / Claude Desktop, pointing at the official cloud:
-
-```json
-{
-  "mcpServers": {
-    "opencms": {
-      "url": "https://mcp.opencms.dev/mcp",
-      "headers": {
-        "Authorization": "Bearer ocms_YOUR_KEY"
-      }
-    }
-  }
-}
-```
-
-Self-host: swap the URL for `http://localhost:3000/mcp` (dev server) or
-your API Worker's origin plus `/mcp`.
-
-## Deploy the official Worker
-
-`apps/mcp` is a dedicated Worker with the custom domain `mcp.opencms.dev`.
-It binds the **same D1** as `apps/worker` and must use the **same**
-`BETTER_AUTH_SECRET`, or API key verification fails.
-
-```bash
-cd apps/mcp
-# Paste the API Worker's D1 database_id into wrangler.toml
-openssl rand -base64 32 | bunx wrangler secret put BETTER_AUTH_SECRET
-# or reuse the API secret: wrangler secret put BETTER_AUTH_SECRET
-bunx wrangler deploy
-```
-
-The zone `opencms.dev` has to live on that Cloudflare account for the
-custom domain route to bind. Until it does, Wrangler still prints a
-`*.workers.dev` URL that serves `/mcp`.
-
-Self-host needs no extra process: `apps/dev` and `apps/worker` already
-dispatch `/mcp` to `createMcpApp`.
+Local `apps/dev` and the Cloudflare API Worker both dispatch `/mcp` to
+`createMcpApp`. A self-hosted or Worker deploy does not need `apps/mcp`;
+that Worker is only the public `mcp.opencms.dev` hostname.
 
 ## Embed it yourself
 
